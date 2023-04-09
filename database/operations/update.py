@@ -107,7 +107,7 @@ def pay(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
             result = session.execute(
                 update(User)
                 .where(User.id == user_id)
-                .values(balance=User.balance + amount)
+                .values(balance=User.balance + amount, passed_points=User.passed_points + 1)
             ).rowcount
             if cash and result != 0:
                 result = session.execute(
