@@ -1,7 +1,6 @@
 from enum import IntEnum
-import uuid
 
-from sqlalchemy import Boolean, Identity, Integer, BigInteger, String, DateTime, Enum, ForeignKey
+from sqlalchemy import Boolean, Integer, BigInteger, String, DateTime, Enum, Identity, ForeignKey
 from sqlalchemy import CheckConstraint
 
 from sqlalchemy.orm import DeclarativeBase
@@ -24,14 +23,18 @@ class User(BaseModel):
 
     id = mapped_column(Integer, Identity(start=1048576, increment=2048), primary_key=True)
     tg_id = mapped_column(BigInteger, unique=True, nullable=True)
-    role = mapped_column(Enum(Role))
-    name = mapped_column(String(255), unique=True)
-    balance = mapped_column(Integer, CheckConstraint('balance >= 0'), default=0)
-    passed_points = mapped_column(Integer, CheckConstraint('passed_points >= 0'), default=0)
+    role = mapped_column(Enum(Role), nullable=False)
+    name = mapped_column(String(255), unique=True, nullable=False)
+    balance = mapped_column(Integer, CheckConstraint('balance >= 0'), default=0, nullable=False)
+    passed_points = mapped_column(Integer, CheckConstraint('passed_points >= 0'), default=0, nullable=False)
 
     point = relationship('Point', back_populates='host')
-    queues = relationship('Queue', back_populates='team')
+    queue = relationship('Queue', back_populates='team')
     blacklist = relationship('BlackList', back_populates='team')
+
+    __table_args__ = (
+        CheckConstraint('(tg_id is null and role = \'player\') or tg_id is not null'),
+    )
 
 
 class Point(BaseModel):
@@ -39,23 +42,28 @@ class Point(BaseModel):
 
     id = mapped_column(Integer, Identity(start=1, increment=1), primary_key=True)
     host_tg_id = mapped_column(BigInteger, ForeignKey('users.tg_id'), unique=True, nullable=True)
-    name = mapped_column(String(255))
-    balance = mapped_column(Integer, CheckConstraint('balance >= 0'), default=0)
-    one_time = mapped_column(Boolean)
+    active = mapped_column(Boolean, default=False, nullable=False)
+    name = mapped_column(String(255), unique=True, nullable=False)
+    balance = mapped_column(Integer, CheckConstraint('balance >= 0'), default=0, nullable=False)
+    one_time = mapped_column(Boolean, nullable=False)
 
-    host = relationship('User', back_populates='points')
+    host = relationship('User', back_populates='point')
     queues = relationship('Queue', back_populates='point')
     blacklist = relationship('BlackList', back_populates='point')
+
+    __table_args__ = (
+        CheckConstraint('(host_tg_id is null and active is false) or host_tg_id is not null'),
+    )
 
 
 class Queue(BaseModel):
     __tablename__ = 'queues'
 
     team_id = mapped_column(Integer, ForeignKey('users.id'), primary_key=True)
-    point_id = mapped_column(Integer, ForeignKey('points.id'))
-    date = mapped_column(DateTime)
+    point_id = mapped_column(Integer, ForeignKey('points.id'), nullable=False)
+    date = mapped_column(DateTime, nullable=False)
 
-    team = relationship('User', back_populates='queues')
+    team = relationship('User', back_populates='queue')
     point = relationship('Point', back_populates='queues')
 
 
