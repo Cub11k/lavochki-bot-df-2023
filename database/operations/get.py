@@ -180,9 +180,13 @@ def all_points() -> list[tuple[int, str]]:
 def total_money() -> tuple[int, int]:
     try:
         with Session() as session:
-            total = session.execute(
-                select(func.sum(Point.balance), func.sum(User.balance))
+            points_total = session.execute(
+                select(func.sum(Point.balance))
             ).first()
-        return (0, 0) if total is None else total[0]
+            users_total = session.execute(
+                select(func.sum(User.balance))
+                .where(User.role == Role.player)
+            ).first()
+        return 0 if points_total is None else points_total[0], 0 if users_total is None else users_total[0]
     except exc.SQLAlchemyError:
         raise ConnectionError("Something wrong with the database while get.total_money!")

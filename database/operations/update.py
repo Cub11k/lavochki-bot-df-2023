@@ -119,7 +119,7 @@ def pay(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
                 result = session.execute(
                     insert(BlackList)
                     .values(team_id=user_id,
-                            point_id=select(Point.id).where(Point.host_tg_id == host_tg_id))
+                            point_id=select(Point.id).where(Point.host_tg_id == host_tg_id).scalar_subquery())
                 ).rowcount
             if cash and result != 0:
                 result = session.execute(
