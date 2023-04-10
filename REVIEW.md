@@ -96,3 +96,7 @@
 - kp_name, state kp_name
   - `database.add.point` - fine
   - delete state, try to add point, set state admin, send success, repeat if failed
+- `/host_password <password>`, only admins from config
+  - set host password, send success
+- `/admin_password <password>`, only admins from config
+  - set admin password, send success
