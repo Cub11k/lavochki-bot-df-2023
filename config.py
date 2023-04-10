@@ -3,11 +3,13 @@ import os
 if os.environ.get('TEST') == 'True':
     import test_config
     test_config.setup_db_environ()
+    test_config.setup_tg_environ()
 
+bot_log_file = os.environ.get('BOT_LOG_FILE')
 database_log_file = os.environ.get('DATABASE_LOG_FILE')
 
-token = os.environ.get('TOKEN')
-admin_id = os.environ.get('ADMIN_ID')
+token = os.environ.get('TOKEN', '')
+admin_id = int(os.environ.get('ADMIN_ID', 0))
 
 dbms_name = os.environ.get('DBMS_NAME')
 dbms_driver = os.environ.get('DBMS_DRIVER')

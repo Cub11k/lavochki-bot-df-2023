@@ -2,11 +2,12 @@ from datetime import datetime
 
 import telebot
 from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from telebot.custom_filters import StateFilter
+from telebot.custom_filters import StateFilter, ChatFilter
 from telebot.handler_backends import State, StatesGroup
 from telebot.util import extract_arguments, extract_command
 
 import config
+from logger import bot_logger
 import database
 from database import Role
 
@@ -115,6 +116,7 @@ def team_name_handler(message: Message):
         team_id = database.add.user(Role.player, message.text.lower(), message.chat.id)
         if team_id:
             bot.set_state(message.chat.id, MyStates.team)
+            bot_logger.info(f"New team: {message.text.lower()} (tg_id: {message.chat.id}, team_id: {team_id})")
             bot.send_message(message.chat.id, f"Ваш номер счёта: {team_id}")
         else:
             bot.set_state(message.chat.id, MyStates.team_name)
@@ -149,6 +151,7 @@ def transfer_handler(message: Message):
         recipient = args[1]
         try:
             if database.update.transfer(recipient, amount, from_user_tg_id=message.chat.id):
+                bot_logger.info(f"Transfer: {amount} from tg_id: {message.chat.id} to team_id: {recipient}")
                 bot.send_message(message.chat.id, "Перевод выполнен!")
             else:
                 bot.send_message(message.chat.id, "Не получилось, проверьте правильность введенных данных")
@@ -166,6 +169,7 @@ def queue_to_handler(message: Message):
         point_id = int(args[0])
         try:
             if database.add.queue(point_id, datetime.now(), tg_id=message.chat.id):
+                bot_logger.info(f"Queue: tg_id: {message.chat.id} to point_id: {point_id}")
                 bot.send_message(message.chat.id, "Теперь вы в очереди!")
             else:
                 bot.send_message(message.chat.id, "Не получилось, проверьте нет ли у вас активной очереди")
@@ -197,6 +201,7 @@ def remove_queue_handler(message: Message):
     else:
         try:
             if database.remove.queue(tg_id=message.chat.id):
+                bot_logger.info(f"Remove queue: tg_id: {message.chat.id}")
                 bot.send_message(message.chat.id, "Очередь отменена!")
             else:
                 bot.send_message(message.chat.id, "Не получилось, проверьте есть ли у вас очередь")
@@ -238,6 +243,7 @@ def list_all_handler(message: Message):
 @bot.message_handler(commands=["stop"], state=MyStates.team)
 def stop_handler(message: Message):
     bot.set_state(message.chat.id, MyStates.stop)
+    bot_logger.info(f"Stop: tg_id: {message.chat.id}")
     bot.send_message(message.chat.id, "Спасибо за участие!")
 
 
@@ -283,6 +289,7 @@ def host_name_handler(message: Message):
     try:
         if database.add.user(Role.host, message.text, message.chat.id):
             bot.set_state(message.chat.id, MyStates.host)
+            bot_logger.info(f"Host: tg_id: {message.chat.id}, name: {message.text}")
             bot.send_message(message.chat.id, "Вы успешно зарегистрированы как КПшник")
         else:
             bot.set_state(message.chat.id, MyStates.host_name)
@@ -301,6 +308,7 @@ def add_host_to_handler(message: Message):
         try:
             point_id = int(args[0])
             if database.update.host(message.chat.id, point_id=point_id):
+                bot_logger.info(f"Host: tg_id: {message.chat.id}, point_id: {point_id}")
                 bot.send_message(message.chat.id, f"Теперь вы КПшник на {point_id} КПшке")
             else:
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
@@ -318,6 +326,7 @@ def remove_host_handler(message: Message):
     else:
         try:
             if database.update.host(message.chat.id, remove=True):
+                bot_logger.info(f"Host: tg_id: {message.chat.id}, removed from point")
                 bot.send_message(message.chat.id, f"Теперь вы можете стать КПшником на другой КПшке")
             else:
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
@@ -335,6 +344,7 @@ def reg_team_handler(message: Message):
         try:
             team_id = database.add.user(Role.player, message.text.lower())
             if team_id:
+                bot_logger.info(f"New team by admins: name: {team_name}, team_id: {team_id}")
                 bot.send_message(message.chat.id, f"Ваш номер счёта: {team_id}")
             else:
                 bot.send_message(message.chat.id, "Такая команда уже существует, попробуйте другое название")
@@ -353,6 +363,7 @@ def queue_team_handler(message: Message):
             user_id = int(args[0])
             point_id = int(args[1])
             if database.add.queue(point_id, datetime.now(), user_id=user_id):
+                bot_logger.info(f"Queue by admins: team_id: {user_id}, point_id: {point_id}")
                 bot.send_message(message.chat.id, "Команда успешно поставлена в очередь")
             else:
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
@@ -370,6 +381,7 @@ def remove_team_queue_handler(message: Message):
         try:
             user_id = int(args[0])
             if database.remove.queue(user_id=user_id):
+                bot_logger.info(f"Remove queue by admins: team_id: {user_id}")
                 bot.send_message(message.chat.id, "Команда успешно удалена из очереди")
             else:
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
@@ -390,6 +402,7 @@ def transfer_from_team_handler(message: Message):
             amount = int(args1[1])
             recipient = int(args[1])
             if database.update.transfer(recipient, amount, from_user_id=from_user_id):
+                bot_logger.info(f"Transfer by admins: from_team_id: {from_user_id}, amount: {amount}, to: {recipient}")
                 bot.send_message(message.chat.id, "Перевод выполнен успешно")
             else:
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
@@ -406,6 +419,7 @@ def start_team_handler(message: Message):
             bot.add_data(message.chat.id, current_team_id=user.id, current_team_tg_id=user.tg_id)
             if user.tg_id is not None:
                 bot.add_data(user.tg_id, active=True)
+            bot_logger.info(f"Start team: team_id: {user.id}, host_tg_id: {message.chat.id}")
             bot.send_message(message.chat.id, "Работа с командой успешно начата")
         else:
             bot.send_message(message.chat.id, "На вашу КПшку нет команд в очереди")
@@ -429,6 +443,8 @@ def payment_handler(message: Message):
                 amount = int(args[0])
                 if database.update.payment(message.chat.id, current_team_id, amount,
                                            cash=extract_command(message.text) == "payment_nal"):
+                    bot_logger.info(
+                        f"Payment: host_tg_id: {message.chat.id}, team_id: {current_team_id}, amount: {amount}")
                     bot.send_message(message.chat.id, "Оплата произведена успешно")
                 else:
                     bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
@@ -452,6 +468,7 @@ def pay_handler(message: Message):
                 amount = int(args[0])
                 if database.update.pay(message.chat.id, current_team_id, amount,
                                        cash=extract_command(message.text) == "pay_nal"):
+                    bot_logger.info(f"Pay: host_tg_id: {message.chat.id}, team_id: {current_team_id}, amount: {amount}")
                     bot.send_message(message.chat.id, "Выплата произведена успешно")
                 else:
                     bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
@@ -473,6 +490,7 @@ def stop_team_handler(message: Message):
         try:
             if database.remove.queue(user_id=current_team_id):
                 bot.add_data(message.chat.id, current_team_id=None, current_team_tg_id=None)
+                bot_logger.info(f"Stop team: team_id: {current_team_id}, host_tg_id: {message.chat.id}")
                 bot.send_message(message.chat.id, "Работа с командой успешно завершена")
             else:
                 bot.send_message(message.chat.id, "Не удалось удалить очередь активной команды")
@@ -485,6 +503,7 @@ def stop_team_handler(message: Message):
 def pause_kp_handler(message: Message):
     try:
         if database.update.pause(message.chat.id):
+            bot_logger.info(f"Pause kp: host_tg_id: {message.chat.id}")
             bot.send_message(message.chat.id, "КП успешно приостановлена")
         else:
             bot.send_message(message.chat.id, "КП не активна")
@@ -497,6 +516,7 @@ def pause_kp_handler(message: Message):
 def resume_kp_handler(message: Message):
     try:
         if database.update.resume(message.chat.id):
+            bot_logger.info(f"Resume kp: host_tg_id: {message.chat.id}")
             bot.send_message(message.chat.id, "КП успешно возобновлена")
         else:
             bot.send_message(message.chat.id, "КП не приостановлена")
@@ -564,6 +584,7 @@ def admin_name_handler(message: Message):
     try:
         if database.add.user(Role.admin, message.text, message.chat.id):
             bot.set_state(message.chat.id, MyStates.admin)
+            bot_logger.info(f"New admin: tg_id: {message.chat.id}")
             bot.send_message(message.chat.id, "Вы успешно зарегистрированы как админ")
         else:
             bot.set_state(message.chat.id, MyStates.admin_name)
@@ -594,6 +615,7 @@ def kp_name_handler(message: Message):
         point_id = database.add.point(message.text, kp_one_time)
         if point_id:
             bot.set_state(message.chat.id, MyStates.admin)
+            bot_logger.info(f"New point: name: {message.text}, one_time: {kp_one_time}, point_id: {point_id}")
             bot.send_message(message.chat.id, f"КП успешно зарегистрирована, point_id: {point_id}")
         else:
             bot.send_message(message.chat.id, "КП с таким названием уже есть, попробуйте другое название")
@@ -602,8 +624,25 @@ def kp_name_handler(message: Message):
         bot.send_message(config.admin_id, e.args[0])
 
 
+@bot.message_handler(commands=["host_password"], chat_id=[config.admin_id])
+def host_password_handler(message: Message):
+    password = extract_arguments(message.text).strip()
+    bot.add_data(bot.user.id, host_password=password)
+    bot_logger.info(f"Пароль для хостов успешно установлен, \"{password}\"")
+    bot.send_message(message.chat.id, f"Пароль для хостов успешно установлен, \"{password}\"")
+
+
+@bot.message_handler(commands=["admin_password"], chat_id=[config.admin_id])
+def admin_password_handler(message: Message):
+    password = extract_arguments(message.text).strip()
+    bot.add_data(bot.user.id, admin_password=password)
+    bot_logger.info(f"Пароль для админов успешно установлен, \"{password}\"")
+    bot.send_message(message.chat.id, f"Пароль для админов успешно установлен, \"{password}\"")
+
+
 database.create_all()
 
+bot.add_custom_filter(ChatFilter())
 bot.add_custom_filter(StateFilter(bot))
 bot.set_state(bot.user.id, MyStates.bot)
 bot.infinity_polling()

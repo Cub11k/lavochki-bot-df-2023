@@ -1,0 +1,25 @@
+import logging
+
+import config
+
+
+def setup_logger():
+    logger_ = logging.getLogger('LavochkiBot')
+
+    formatter = logging.Formatter(
+        '%(asctime)s %(levelname)s - %(name)s: "%(message)s"'
+    )
+
+    stderr_handler = logging.StreamHandler()
+    stderr_handler.setFormatter(formatter)
+    logger_.addHandler(stderr_handler)
+
+    if config.bot_log_file is not None:
+        file_handler = logging.FileHandler(config.bot_log_file)
+        file_handler.setFormatter(formatter)
+        logger_.addHandler(file_handler)
+
+    return logger_
+
+
+bot_logger = setup_logger()
