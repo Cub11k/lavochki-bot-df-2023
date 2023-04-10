@@ -5,8 +5,10 @@ import sqlalchemy.exc as exc
 
 from database.models import User, Point, Queue, BlackList
 from database.config import Session
+from database.logger import log
 
 
+@log
 def user(user_id: int) -> bool:
     try:
         with Session.begin() as session:
@@ -24,6 +26,7 @@ def user(user_id: int) -> bool:
         return True
 
 
+@log
 def point(point_id: int) -> bool:
     try:
         with Session.begin() as session:
@@ -41,6 +44,7 @@ def point(point_id: int) -> bool:
         return True
 
 
+@log
 def queue(user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
     try:
         with Session.begin() as session:
@@ -67,6 +71,7 @@ def queue(user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
         return True
 
 
+@log
 def all_point_queues(point_id: int) -> bool:
     try:
         with Session.begin() as session:
@@ -84,6 +89,7 @@ def all_point_queues(point_id: int) -> bool:
         return True
 
 
+@log
 def blacklist(user_id: int, point_id: int) -> bool:
     try:
         with Session.begin() as session:

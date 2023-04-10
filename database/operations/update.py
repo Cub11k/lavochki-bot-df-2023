@@ -5,8 +5,10 @@ import sqlalchemy.exc as exc
 
 from database.models import Role, User, Point, Queue, BlackList
 from database.config import Session
+from database.logger import log
 
 
+@log
 def transfer(to_user_id: int, amount: int, from_user_id: Optional[int] = None,
              from_user_tg_id: Optional[int] = None) -> bool:
     try:
@@ -44,6 +46,7 @@ def transfer(to_user_id: int, amount: int, from_user_id: Optional[int] = None,
         return True
 
 
+@log
 def host(host_tg_id: int, point_id: Optional[int] = None, remove: Optional[bool] = False) -> bool:
     try:
         with Session.begin() as session:
@@ -72,6 +75,7 @@ def host(host_tg_id: int, point_id: Optional[int] = None, remove: Optional[bool]
         return True
 
 
+@log
 def payment(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
     try:
         with Session.begin() as session:
@@ -98,6 +102,7 @@ def payment(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
         return True
 
 
+@log
 def pay(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
     try:
         with Session.begin() as session:
@@ -134,6 +139,7 @@ def pay(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
         return True
 
 
+@log
 def pause(host_tg_id: int) -> bool:
     try:
         with Session.begin() as session:
@@ -153,6 +159,7 @@ def pause(host_tg_id: int) -> bool:
         return True
 
 
+@log
 def resume(host_tg_id: int) -> bool:
     try:
         with Session.begin() as session:

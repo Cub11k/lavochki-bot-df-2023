@@ -5,8 +5,10 @@ import sqlalchemy.exc as exc
 
 from database.models import Role, User, Point, Queue, BlackList
 from database.config import Session
+from database.logger import log
 
 
+@log
 def user(tg_id: Optional[int] = None, user_id: Optional[int] = None) -> User | None:
     try:
         with Session() as session:
@@ -25,6 +27,7 @@ def user(tg_id: Optional[int] = None, user_id: Optional[int] = None) -> User | N
         raise ConnectionError("Something wrong with the database while get.user!")
 
 
+@log
 def user_balance(tg_id: int) -> int | None:
     try:
         with Session() as session:
@@ -37,6 +40,7 @@ def user_balance(tg_id: int) -> int | None:
         raise ConnectionError("Something wrong with the database while get.user_balance!")
 
 
+@log
 def user_role(tg_id: int) -> Role | None:
     try:
         with Session() as session:
@@ -49,6 +53,7 @@ def user_role(tg_id: int) -> Role | None:
         raise ConnectionError("Something wrong with the database while get.user_role!")
 
 
+@log
 def user_queue(tg_id: int) -> Queue | None:
     try:
         with Session() as session:
@@ -61,6 +66,7 @@ def user_queue(tg_id: int) -> Queue | None:
         raise ConnectionError("Something wrong with the database while get.user_queue!")
 
 
+@log
 def user_queue_place(tg_id: int) -> int | None:
     try:
         date = (
@@ -86,6 +92,7 @@ def user_queue_place(tg_id: int) -> int | None:
         raise ConnectionError("Something wrong with the database while get.user_queue_place!")
 
 
+@log
 def point(host_tg_id: Optional[int] = None, point_id: Optional[int] = None) -> Point | None:
     try:
         with Session() as session:
@@ -103,6 +110,7 @@ def point(host_tg_id: Optional[int] = None, point_id: Optional[int] = None) -> P
         raise ConnectionError("Something wrong with the database while get.point!")
 
 
+@log
 def point_next_team(host_tg_id: int) -> User | None:
     try:
         point_id = (
@@ -122,6 +130,7 @@ def point_next_team(host_tg_id: int) -> User | None:
         raise ConnectionError("Something wrong with the database while get.point_queue!")
 
 
+@log
 def point_balance(point_id: int) -> int | None:
     try:
         with Session() as session:
@@ -134,6 +143,7 @@ def point_balance(point_id: int) -> int | None:
         raise ConnectionError("Something wrong with the database while get.point_balance!")
 
 
+@log
 def free_points(tg_id: int) -> list[tuple[int, str]]:
     try:
         blacklisted_point_ids = (
@@ -154,6 +164,7 @@ def free_points(tg_id: int) -> list[tuple[int, str]]:
         raise ConnectionError("Something wrong with the database while get.free_points!")
 
 
+@log
 def all_points() -> list[tuple[int, str]]:
     try:
         with Session() as session:

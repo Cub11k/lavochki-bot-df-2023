@@ -6,8 +6,10 @@ import sqlalchemy.exc as exc
 
 from database.models import Role, User, Point, Queue, BlackList
 from database.config import Session
+from database.logger import log
 
 
+@log
 def user(role: Role, name: str, tg_id: Optional[int] = None) -> int | Literal[False]:
     try:
         with Session.begin() as session:
@@ -23,6 +25,7 @@ def user(role: Role, name: str, tg_id: Optional[int] = None) -> int | Literal[Fa
         return result[0]
 
 
+@log
 def point(name: str, one_time: bool, host_tg_id: Optional[int] = None, balance: int = 0) -> int | Literal[False]:
     try:
         with Session.begin() as session:
@@ -38,6 +41,7 @@ def point(name: str, one_time: bool, host_tg_id: Optional[int] = None, balance: 
         return result[0]
 
 
+@log
 def queue(point_id: int, date: datetime, user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
     try:
         team_id = None
@@ -73,6 +77,7 @@ def queue(point_id: int, date: datetime, user_id: Optional[int] = None, tg_id: O
         return True
 
 
+@log
 def blacklist(point_id: int, user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
     try:
         team_id = None
