@@ -174,3 +174,15 @@ def all_points() -> list[tuple[int, str]]:
         return [point_[0] for point_ in points]
     except exc.SQLAlchemyError:
         raise ConnectionError("Something wrong with the database while get.all_points!")
+
+
+@log
+def total_money() -> tuple[int, int]:
+    try:
+        with Session() as session:
+            total = session.execute(
+                select(func.sum(Point.balance), func.sum(User.balance))
+            ).first()
+        return (0, 0) if total is None else total[0]
+    except exc.SQLAlchemyError:
+        raise ConnectionError("Something wrong with the database while get.total_money!")

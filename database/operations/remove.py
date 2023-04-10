@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import delete, func
+from sqlalchemy import delete
 import sqlalchemy.exc as exc
 
 from database.models import User, Point, Queue, BlackList

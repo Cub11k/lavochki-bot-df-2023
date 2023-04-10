@@ -1,9 +1,9 @@
 from typing import Optional
 
-from sqlalchemy import select, update, insert, func
+from sqlalchemy import select, update, insert
 import sqlalchemy.exc as exc
 
-from database.models import Role, User, Point, Queue, BlackList
+from database.models import User, Point, BlackList
 from database.config import Session
 from database.logger import log
 

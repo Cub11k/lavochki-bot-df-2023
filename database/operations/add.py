@@ -46,7 +46,11 @@ def queue(point_id: int, date: datetime, user_id: Optional[int] = None, tg_id: O
     try:
         team_id = None
         if tg_id is not None:
-            team_id = select(User.id).where(User.tg_id == tg_id).scalar_subquery()
+            team_id = (
+                select(User.id)
+                .where(User.tg_id == tg_id)
+                .scalar_subquery()
+            )
         elif user_id is not None:
             team_id = user_id
         else:
