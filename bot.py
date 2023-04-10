@@ -54,16 +54,52 @@ def reg_buttons_handler(call: CallbackQuery):
 
 @bot.message_handler(commands=["help"])
 def help_handler(message: Message):
-    bot.send_message(message.chat.id, "<b>Команды бота:</b>\n", parse_mode='HTML')
-    bot.send_message(message.chat.id, "\n /start - запуск бота;\n"
-                                      "\n /reg - регистрация для участников;\n"
-                                      "\n /balance - текущее количество вмкешей команды;\n"
-                                      "\n /transfer <n> to <recipient_id> - перевести n вмкешей на счёт recipient_id;\n"
-                                      "\n /queue_to <l> - занять очередь на кп l;\n"
-                                      "\n /place - показывает место в очереди;\n"
-                                      "\n /remove_queue - отменить свою очередь, если она была назначена на кп;\n"
-                                      "\n /stop - остановка участия команды, при котором они больше не проходят кп;\n"
-                                      "\n /list_free - команда показывает свободные кпшки\n")
+    state = bot.get_state(message.chat.id)
+    msg = (
+        "Список команд:\n\n"
+        "/start - начать работу с ботом\n"
+        "/reg - зарегистрировать команду\n"
+        "/reg_host - зарегистрировать КПшника\n"
+        "/reg_admin - зарегистрировать админа\n"
+        "/list_free - список свободных КПшек\n"
+        "/list_all - список всех КПшек\n"
+        "/help - список команд\n"
+    )
+    if state == MyStates.team.name:
+        msg += (
+            "/balance - баланс команды\n"
+            "/transfer <amount> to <recipient> - перевести деньги другой команде\n"
+            "/queue_to <point_id> - занять очередь на КПшку\n"
+            "/place - место в очереди\n"
+            "/remove_queue - отменить свою очередь\n"
+            "/stop - закончить участие\n"
+        )
+    if state == MyStates.host.name:
+        msg += (
+            "/add_host_to <point_id> - стать КПшником на выбранной точке\n"
+            "/remove_host - перестать быть КПшником на выбранной точке\n"
+            "/start_team - начать работу с командой\n"
+            "/payment <amount> - оплата товара в магазине (деньги снимутся со счёта текущей команды)\n"
+            "/payment_nal <amount> - оплата товара в магазине наличкой (деньги снимутся со счёта текущей команды)\n"
+            "/pay <amount> - выплата за прохождение КПшки (деньги начислятся на счёт текущей команды)\n"
+            "/pay_nal <amount> - выплата за прохождение КПшки наличкой (деньги начислятся на счёт текущей команды)\n"
+            "/stop_team - закончить работу с командой\n"
+            "/kp_pause - приостановить работу КПшки\n"
+            "/kp_resume - возобновить работу КПшки\n"
+        )
+    if state == MyStates.admin.name:
+        msg += (
+            "/reg_kp - зарегистрировать КПшку\n"
+        )
+    if state in [MyStates.host.name, MyStates.admin.name]:
+        msg += (
+            "/reg_team <team_name> - зарегистрировать команду\n"
+            "/queue_team <team_id> to <point_id> - занять очередь на КПшку для выбранной команды\n"
+            "remove_team_queue <team_id> - отменить очередь для выбранной команды\n"
+            "/transfer_from_team <team_id> <amount> to <recipient> - перевести деньги другой команде\n"
+            "/kp_balance <point_id> - баланс КПшки (наличка)\n"
+        )
+    bot.send_message(message.chat.id, msg)
 
 
 @bot.message_handler(commands=["reg"], state=[None])
@@ -565,6 +601,8 @@ def kp_name_handler(message: Message):
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         bot.send_message(config.admin_id, e.args[0])
 
+
+database.create_all()
 
 bot.add_custom_filter(StateFilter(bot))
 bot.set_state(bot.user.id, MyStates.bot)

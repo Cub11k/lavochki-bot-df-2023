@@ -12,3 +12,10 @@ from database.operations import (
     update as update,
     remove as remove,
 )
+
+
+def create_all():
+    from database.config import engine
+    from database.models import BaseModel
+
+    BaseModel.metadata.create_all(engine)
