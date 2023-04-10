@@ -159,7 +159,7 @@ def free_points(tg_id: int) -> list[tuple[int, str]]:
                 .where(Point.id.notin_(blacklisted_point_ids))
                 .where(Point.active.is_(True))
             ).all()
-        return [point_[0] for point_ in points]
+        return points
     except exc.SQLAlchemyError:
         raise ConnectionError("Something wrong with the database while get.free_points!")
 
@@ -172,7 +172,7 @@ def all_points() -> list[tuple[int, str, int]]:
                 select(Point.name, Point.id, Point.balance)
                 .order_by(Point.balance.asc())
             ).all()
-        return [point_[0] for point_ in points]
+        return points
     except exc.SQLAlchemyError:
         raise ConnectionError("Something wrong with the database while get.all_points!")
 
