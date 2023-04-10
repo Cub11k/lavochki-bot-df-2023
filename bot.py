@@ -4,12 +4,16 @@ import telebot
 from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from telebot.custom_filters import StateFilter, ChatFilter
 from telebot.handler_backends import State, StatesGroup
-from telebot.util import extract_arguments, extract_command
+from telebot.storage import StateMemoryStorage, StateRedisStorage
+from telebot.util import extract_arguments, extract_command, antiflood
 
 import config
 from logger import bot_logger
 import database
 from database import Role
+
+storage = StateRedisStorage(host=config.redis_host, port=config.redis_port,
+                            password=config.redis_password) if not config.test else StateMemoryStorage()
 
 bot = telebot.TeleBot(token=config.token)
 
@@ -124,7 +128,8 @@ def team_name_handler(message: Message):
     except ConnectionError as e:
         bot.set_state(message.chat.id, MyStates.team_name)
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["balance"], state=MyStates.team)
@@ -133,7 +138,8 @@ def balance_handler(message: Message):
         balance = database.get.user_balance(message.chat.id)
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
     else:
         if balance is not None:
             bot.send_message(message.chat.id, f"Ваш баланс - {balance}")
@@ -157,7 +163,8 @@ def transfer_handler(message: Message):
                 bot.send_message(message.chat.id, "Не получилось, проверьте правильность введенных данных")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["queue_to"], state=MyStates.team)
@@ -175,7 +182,8 @@ def queue_to_handler(message: Message):
                 bot.send_message(message.chat.id, "Не получилось, проверьте нет ли у вас активной очереди")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["place"], state=MyStates.team)
@@ -184,7 +192,8 @@ def place_handler(message: Message):
         place = database.get.user_queue_place(message.chat.id)
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
     else:
         if place is None:
             bot.send_message(message.chat.id, "У вас нет активной очереди")
@@ -207,7 +216,8 @@ def remove_queue_handler(message: Message):
                 bot.send_message(message.chat.id, "Не получилось, проверьте есть ли у вас очередь")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["list_free"], state=[MyStates.team, MyStates.host, MyStates.admin])
@@ -216,7 +226,8 @@ def list_free_handler(message: Message):
         points = database.get.free_points(message.chat.id)
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
     else:
         if len(points) > 0:
             msg = "\n".join(f"{point[0]} - {point[1]}" for point in points)
@@ -231,7 +242,8 @@ def list_all_handler(message: Message):
         points = database.get.all_points()
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
     else:
         if len(points) > 0:
             msg = "\n".join(f"{point[0]} - {point[1]}" for point in points)
@@ -296,7 +308,8 @@ def host_name_handler(message: Message):
             bot.send_message(message.chat.id, "КПшник с таким именем уже есть, попробуйте другое имя")
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["add_host_to"], state=MyStates.host)
@@ -314,7 +327,8 @@ def add_host_to_handler(message: Message):
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["remove_host"], state=MyStates.host)
@@ -332,7 +346,8 @@ def remove_host_handler(message: Message):
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["reg_team"], state=[MyStates.host, MyStates.admin])
@@ -350,7 +365,8 @@ def reg_team_handler(message: Message):
                 bot.send_message(message.chat.id, "Такая команда уже существует, попробуйте другое название")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["queue_team"], state=[MyStates.host, MyStates.admin])
@@ -369,7 +385,8 @@ def queue_team_handler(message: Message):
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["remove_team_queue"], state=[MyStates.host, MyStates.admin])
@@ -387,7 +404,8 @@ def remove_team_queue_handler(message: Message):
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["transfer_from_team"], state=[MyStates.host, MyStates.admin])
@@ -408,7 +426,8 @@ def transfer_from_team_handler(message: Message):
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["start_team"], state=MyStates.host)
@@ -425,7 +444,8 @@ def start_team_handler(message: Message):
             bot.send_message(message.chat.id, "На вашу КПшку нет команд в очереди")
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["payment", "payment_nal"], state=MyStates.host)
@@ -450,7 +470,8 @@ def payment_handler(message: Message):
                     bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
             except ConnectionError as e:
                 bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-                bot.send_message(config.admin_id, e.args[0])
+                for admin_id in config.admin_ids:
+                    antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["pay", "pay_nal"], state=MyStates.host)
@@ -474,7 +495,8 @@ def pay_handler(message: Message):
                     bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
             except ConnectionError as e:
                 bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-                bot.send_message(config.admin_id, e.args[0])
+                for admin_id in config.admin_ids:
+                    antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["stop_team"], state=MyStates.host)
@@ -496,7 +518,8 @@ def stop_team_handler(message: Message):
                 bot.send_message(message.chat.id, "Не удалось удалить очередь активной команды")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["kp_pause"], state=MyStates.host)
@@ -509,7 +532,8 @@ def pause_kp_handler(message: Message):
             bot.send_message(message.chat.id, "КП не активна")
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["kp_resume"], state=MyStates.host)
@@ -522,7 +546,8 @@ def resume_kp_handler(message: Message):
             bot.send_message(message.chat.id, "КП не приостановлена")
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["kp_balance"], state=[MyStates.host, MyStates.admin])
@@ -540,7 +565,8 @@ def kp_balance_handler(message: Message):
                 bot.send_message(message.chat.id, "Не удалось получить баланс КП")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["reg_admin"], state=[None])
@@ -591,7 +617,8 @@ def admin_name_handler(message: Message):
             bot.send_message(message.chat.id, "Админ с таким именем уже есть, попробуйте другое имя")
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["reg_kp"], state=MyStates.admin)
@@ -621,10 +648,11 @@ def kp_name_handler(message: Message):
             bot.send_message(message.chat.id, "КП с таким названием уже есть, попробуйте другое название")
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
-@bot.message_handler(commands=["host_password"], chat_id=[config.admin_id])
+@bot.message_handler(commands=["host_password"], chat_id=config.admin_ids)
 def host_password_handler(message: Message):
     password = extract_arguments(message.text).strip()
     bot.add_data(bot.user.id, host_password=password)
@@ -632,7 +660,7 @@ def host_password_handler(message: Message):
     bot.send_message(message.chat.id, f"Пароль для хостов успешно установлен, \"{password}\"")
 
 
-@bot.message_handler(commands=["admin_password"], chat_id=[config.admin_id])
+@bot.message_handler(commands=["admin_password"], chat_id=config.admin_ids)
 def admin_password_handler(message: Message):
     password = extract_arguments(message.text).strip()
     bot.add_data(bot.user.id, admin_password=password)
