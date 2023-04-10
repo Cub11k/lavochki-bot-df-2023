@@ -82,6 +82,9 @@
 - `/kp_balance <point_id>`, state host, admin
   - `database.get.point_balance` - fine
   - check args, get balance, send balance or error
+- `/kp_balance_all`, state admin
+  - `database.get.all_points` - fine
+  - get name, id, balance sorted by balance (ascending), send msg or that there are no points
 - `/reg_admin`, state None
   - check if admin has already tried to register, decline if so, ask admin password, state admin_password
 - admin_password, state admin_password

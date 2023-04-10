@@ -245,7 +245,7 @@ def list_all_handler(message: Message):
     try:
         points = database.get.all_points()
         if len(points) > 0:
-            msg = "\n".join(f"{point[0]} - {point[1]}" for point in points)
+            msg = "\n".join(f"{point[0]} ({point[1]})" for point in points)
             bot.send_message(message.chat.id, f"Все КПшки:\n{msg}")
         else:
             bot.send_message(message.chat.id, "КПшек нет")
@@ -580,15 +580,30 @@ def kp_balance_handler(message: Message):
     else:
         try:
             point_id = int(args)
-            balance = database.get.point_balance(point_id)
-            if balance is not None:
-                bot.send_message(message.chat.id, f"Баланс КП: {balance}")
+            point = database.get.point(point_id=point_id)
+            if point is not None:
+                bot.send_message(message.chat.id, f"Баланс КП {point.name}: {point.balance}")
             else:
                 bot.send_message(message.chat.id, "Не удалось получить баланс КП")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["kp_balance_all"], state=MyStates.admin)
+def kp_balance_all_handler(message: Message):
+    try:
+        points = database.get.all_points()
+        if len(points) > 0:
+            msg = "\n".join([f"{point[0]} ({point[1]}): {point[2]}" for point in points])
+            bot.send_message(message.chat.id, msg)
+        else:
+            bot.send_message(message.chat.id, "Нет КПшек")
+    except ConnectionError as e:
+        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["reg_admin"], state=[None])

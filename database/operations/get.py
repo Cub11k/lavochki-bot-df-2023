@@ -165,11 +165,12 @@ def free_points(tg_id: int) -> list[tuple[int, str]]:
 
 
 @log
-def all_points() -> list[tuple[int, str]]:
+def all_points() -> list[tuple[int, str, int]]:
     try:
         with Session() as session:
             points = session.execute(
-                select(Point.id, Point.name)
+                select(Point.name, Point.id, Point.balance)
+                .order_by(Point.balance.asc())
             ).all()
         return [point_[0] for point_ in points]
     except exc.SQLAlchemyError:
