@@ -96,6 +96,7 @@ def help_handler(message: Message):
         msg += (
             "/reg_kp - зарегистрировать КПшку\n"
             "/total_money - общее количество денег\n"
+            "/kp_balance_all - баланс всех КПшек по возрастанию (наличка)\n"
         )
     if state in [MyStates.host.name, MyStates.admin.name]:
         msg += (
