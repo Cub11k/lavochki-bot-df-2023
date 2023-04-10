@@ -43,18 +43,20 @@ def point(point_id: int) -> bool:
 
 def queue(user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
     try:
-        join_clause = None
-        if user_id is not None:
-            join_clause = User.queue.and_(User.id == user_id)
-        elif tg_id is not None:
-            join_clause = User.queue.and_(User.tg_id == tg_id)
-        else:
-            raise ValueError("Both user_id and tg_id are None!")
         with Session.begin() as session:
-            result = session.execute(
-                delete(Queue)
-                .join(join_clause)
-            ).rowcount
+            result = 0
+            if user_id is not None:
+                result = session.execute(
+                    delete(Queue)
+                    .where(Queue.team_id == user_id)
+                ).rowcount
+            elif tg_id is not None:
+                result = session.execute(
+                    delete(Queue)
+                    .join(User.queue.and_(User.tg_id == tg_id))
+                ).rowcount
+            else:
+                raise ValueError("Both user_id and tg_id are None!")
     except exc.IntegrityError:
         return False
     except exc.SQLAlchemyError:

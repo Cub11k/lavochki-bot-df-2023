@@ -76,9 +76,10 @@ def reg_handler(message: Message):
 def team_name_handler(message: Message):
     bot.delete_state(message.chat.id)
     try:
-        if database.add.user(Role.player, message.text.lower(), message.chat.id):
+        team_id = database.add.user(Role.player, message.text.lower(), message.chat.id)
+        if team_id:
             bot.set_state(message.chat.id, MyStates.team)
-            bot.send_message(message.chat.id, "Ваш номер счёта: ")
+            bot.send_message(message.chat.id, f"Ваш номер счёта: {team_id}")
         else:
             bot.set_state(message.chat.id, MyStates.team_name)
             bot.send_message(message.chat.id, "Такая команда уже существует, попробуйте другое название")
@@ -168,10 +169,10 @@ def remove_queue_handler(message: Message):
             bot.send_message(config.admin_id, e.args[0])
 
 
-@bot.message_handler(commands=["list_free"], state=MyStates.team)
-def list_free_handler(message):
+@bot.message_handler(commands=["list_free"], state=[MyStates.team, MyStates.host, MyStates.admin])
+def list_free_handler(message: Message):
     try:
-        points = database.get.free_points()
+        points = database.get.free_points(message.chat.id)
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         bot.send_message(config.admin_id, e.args[0])
@@ -181,6 +182,21 @@ def list_free_handler(message):
             bot.send_message(message.chat.id, f"Свободные КПшки:\n{msg}")
         else:
             bot.send_message(message.chat.id, "Свободных КПшек нет")
+
+
+@bot.message_handler(commands=["list_all"], state=[MyStates.team, MyStates.host, MyStates.admin])
+def list_all_handler(message: Message):
+    try:
+        points = database.get.all_points()
+    except ConnectionError as e:
+        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+        bot.send_message(config.admin_id, e.args[0])
+    else:
+        if len(points) > 0:
+            msg = "\n".join(f"{point[0]} - {point[1]}" for point in points)
+            bot.send_message(message.chat.id, f"Все КПшки:\n{msg}")
+        else:
+            bot.send_message(message.chat.id, "КПшек нет")
 
 
 @bot.message_handler(commands=["stop"], state=MyStates.team)
@@ -241,20 +257,37 @@ def host_name_handler(message: Message):
 
 
 @bot.message_handler(commands=["add_host_to"], state=MyStates.host)
-def point_id_handler(message: Message):
+def add_host_to_handler(message: Message):
     args = extract_arguments(message.text).split()
     if len(args) != 1 or not args[0].isdigit():
         bot.send_message(message.chat.id, "Неверный формат")
-        return
-    try:
-        point_id = int(args[0])
-        if database.update.host(message.chat.id, point_id):
-            bot.send_message(message.chat.id, f"Теперь вы КПшник на {point_id} КПшке")
-        else:
-            bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-    except ConnectionError as e:
-        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+    else:
+        try:
+            point_id = int(args[0])
+            if database.update.host(message.chat.id, point_id=point_id):
+                bot.send_message(message.chat.id, f"Теперь вы КПшник на {point_id} КПшке")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            bot.send_message(config.admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["remove_host"], state=MyStates.host)
+def remove_host_handler(message: Message):
+    with bot.retrieve_data(message.chat.id) as data:
+        current_team_id = data.get("current_team_id")
+    if current_team_id is not None:
+        bot.send_message(message.chat.id, "Вы не можете покинуть КПшку, пока на ней есть команда")
+    else:
+        try:
+            if database.update.host(message.chat.id, remove=True):
+                bot.send_message(message.chat.id, f"Теперь вы можете стать КПшником на другой КПшке")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            bot.send_message(config.admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["reg_team"], state=[MyStates.host, MyStates.admin])
@@ -264,8 +297,9 @@ def reg_team_handler(message: Message):
         bot.send_message(message.chat.id, "Неверный формат")
     else:
         try:
-            if database.add.user(Role.player, message.text.lower()):
-                bot.send_message(message.chat.id, "Ваш номер счёта: ")
+            team_id = database.add.user(Role.player, message.text.lower())
+            if team_id:
+                bot.send_message(message.chat.id, f"Ваш номер счёта: {team_id}")
             else:
                 bot.send_message(message.chat.id, "Такая команда уже существует, попробуйте другое название")
         except ConnectionError as e:
@@ -273,22 +307,22 @@ def reg_team_handler(message: Message):
             bot.send_message(config.admin_id, e.args[0])
 
 
-@bot.message_handler(commands=["kp_queue_team"], state=MyStates.host)
+@bot.message_handler(commands=["queue_team"], state=[MyStates.host, MyStates.admin])
 def queue_team_handler(message: Message):
     args = extract_arguments(message.text).split(" to ")
     if len(args) != 2 or not args[0].isdigit() or not args[1].isdigit():
         bot.send_message(message.chat.id, "Неверный формат")
-        return
-    try:
-        user_id = int(args[0])
-        point = database.get.point(host_tg_id=message.chat.id)
-        if point is not None and database.add.queue(point.id, datetime.now(), user_id=user_id):
-            bot.send_message(message.chat.id, "Команда успешно поставлена в очередь")
-        else:
-            bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-    except ConnectionError as e:
-        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+    else:
+        try:
+            user_id = int(args[0])
+            point_id = int(args[1])
+            if database.add.queue(point_id, datetime.now(), user_id=user_id):
+                bot.send_message(message.chat.id, "Команда успешно поставлена в очередь")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            bot.send_message(config.admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["remove_team_queue"], state=[MyStates.host, MyStates.admin])
@@ -296,16 +330,16 @@ def remove_team_queue_handler(message: Message):
     args = extract_arguments(message.text).split()
     if len(args) != 1 or not args[0].isdigit():
         bot.send_message(message.chat.id, "Неверный формат")
-        return
-    try:
-        user_id = int(args[0])
-        if database.remove.queue(user_id=user_id):
-            bot.send_message(message.chat.id, "Команда успешно удалена из очереди")
-        else:
-            bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-    except ConnectionError as e:
-        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
+    else:
+        try:
+            user_id = int(args[0])
+            if database.remove.queue(user_id=user_id):
+                bot.send_message(message.chat.id, "Команда успешно удалена из очереди")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            bot.send_message(config.admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["transfer_from_team"], state=[MyStates.host, MyStates.admin])
@@ -314,33 +348,98 @@ def transfer_from_team_handler(message: Message):
     args1 = args[0].split()
     if len(args1) != 2 or not args1[0].isdigit() or not args1[1].isdigit() or len(args) != 2 or not args[1].isdigit():
         bot.send_message(message.chat.id, "Неверный формат")
-        return
+    else:
+        try:
+            from_user_id = int(args1[0])
+            amount = int(args1[1])
+            recipient = int(args[1])
+            if database.update.transfer(recipient, amount, from_user_id=from_user_id):
+                bot.send_message(message.chat.id, "Перевод выполнен успешно")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            bot.send_message(config.admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["start_team"], state=MyStates.host)
+def start_team_handler(message: Message):
     try:
-        from_user_id = int(args1[0])
-        amount = int(args1[1])
-        recipient = int(args[1])
-        if database.update.transfer(recipient, amount, from_user_id=from_user_id):
-            bot.send_message(message.chat.id, "Перевод выполнен успешно")
+        user = database.get.point_next_team(message.chat.id)
+        if user is not None:
+            bot.add_data(message.chat.id, current_team_id=user.id, current_team_tg_id=user.tg_id)
+            if user.tg_id is not None:
+                bot.add_data(user.tg_id, active=True)
+            bot.send_message(message.chat.id, "Работа с командой успешно начата")
         else:
-            bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+            bot.send_message(message.chat.id, "На вашу КПшку нет команд в очереди")
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         bot.send_message(config.admin_id, e.args[0])
 
 
-@bot.message_handler(commands=["payment", "payment_nal"])
+@bot.message_handler(commands=["payment", "payment_nal"], state=MyStates.host)
 def payment_handler(message: Message):
-    args = extract_arguments(message.text)
-    if len(args) == 0 or not args.isdigit():
-        bot.send_message(message.chat.id, "Неверный формат")
+    with bot.retrieve_data(message.chat.id) as data:
+        current_team_id = data.get("current_team_id")
+    if current_team_id is None:
+        bot.send_message(message.chat.id, "Нет активной команды")
+    else:
+        args = extract_arguments(message.text)
+        if len(args) != 1 or not args.isdigit():
+            bot.send_message(message.chat.id, "Неверный формат")
+        else:
+            try:
+                amount = int(args[0])
+                if database.update.payment(message.chat.id, current_team_id, amount,
+                                           cash=extract_command(message.text) == "payment_nal"):
+                    bot.send_message(message.chat.id, "Оплата произведена успешно")
+                else:
+                    bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+            except ConnectionError as e:
+                bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+                bot.send_message(config.admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["pay", "pay_nal"], state=MyStates.host)
+def pay_handler(message: Message):
+    with bot.retrieve_data(message.chat.id) as data:
+        current_team_id = data.get("current_team_id")
+    if current_team_id is None:
+        bot.send_message(message.chat.id, "Нет активной команды")
+    else:
+        args = extract_arguments(message.text)
+        if len(args) != 1 or not args.isdigit():
+            bot.send_message(message.chat.id, "Неверный формат")
+        else:
+            try:
+                amount = int(args[0])
+                if database.update.pay(message.chat.id, current_team_id, amount,
+                                       cash=extract_command(message.text) == "pay_nal"):
+                    bot.send_message(message.chat.id, "Выплата произведена успешно")
+                else:
+                    bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+            except ConnectionError as e:
+                bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+                bot.send_message(config.admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["stop_team"], state=MyStates.host)
+def stop_team_handler(message: Message):
+    with bot.retrieve_data(message.chat.id) as data:
+        current_team_id = data.get("current_team_id")
+        current_team_tg_id = data.get("current_team_tg_id")
+    if current_team_id is None:
+        bot.send_message(message.chat.id, "Нет активной команды")
+    if current_team_tg_id is not None:
+        bot.add_data(current_team_tg_id, active=False)
     else:
         try:
-            amount = int(args[0])
-            if database.update.payment(message.chat.id, amount,
-                                       cash=extract_command(message.text) == "payment_nal"):
-                bot.send_message(message.chat.id, "Оплата произведена успешно")
+            if database.remove.queue(user_id=current_team_id):
+                bot.add_data(message.chat.id, current_team_id=None, current_team_tg_id=None)
+                bot.send_message(message.chat.id, "Работа с командой успешно завершена")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+                bot.send_message(message.chat.id, "Не удалось удалить очередь активной команды")
         except ConnectionError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             bot.send_message(config.admin_id, e.args[0])
@@ -368,68 +467,6 @@ def resume_kp_handler(message: Message):
     except ConnectionError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         bot.send_message(config.admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["start_team"], state=MyStates.host)
-def start_team_handler(message: Message):
-    try:
-        user = database.get.point_next_team(message.chat.id)
-        if user is not None:
-            bot.add_data(message.chat.id, current_team_id=user.id, current_team_tg_id=user.tg_id)
-            if user.tg_id is not None:
-                bot.add_data(user.tg_id, active=True)
-                bot.send_message(user.tg_id, "Ваша команда может пройти на КПшку")
-            else:
-                bot.send_message(message.chat.id, "У команды нет тг аккаунта")
-            bot.send_message(message.chat.id, "Команда успешно вызвана")
-        else:
-            bot.send_message(message.chat.id, "Некого вызывать")
-    except ConnectionError as e:
-        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        bot.send_message(config.admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["stop_team"], state=MyStates.host)
-def stop_team_handler(message: Message):
-    with bot.retrieve_data(message.chat.id) as data:
-        current_team_id = data.get("current_team_id")
-        current_team_tg_id = data.get("current_team_tg_id")
-    if current_team_id is None:
-        bot.send_message(message.chat.id, "Нет активной команды")
-    if current_team_tg_id is not None:
-        bot.add_data(current_team_tg_id, active=False)
-    else:
-        try:
-            if database.remove.queue(user_id=current_team_id):
-                bot.send_message(message.chat.id, "Работа с командой успешно завершена")
-            else:
-                bot.send_message(message.chat.id, "Не удалось удалить очередь активной команды")
-        except ConnectionError as e:
-            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            bot.send_message(config.admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["pay", "pay_nal"], state=MyStates.host)
-def pay_handler(message: Message):
-    with bot.retrieve_data(message.chat.id) as data:
-        current_team_id = data.get("current_team_id")
-    if current_team_id is None:
-        bot.send_message(message.chat.id, "Нет активной команды")
-    else:
-        args = extract_arguments(message.text)
-        if len(args) != 1 or not args.isdigit():
-            bot.send_message(message.chat.id, "Неверный формат")
-        else:
-            try:
-                amount = int(args[0])
-                if database.update.pay(message.chat.id, current_team_id, amount,
-                                       cash=extract_command(message.text) == "pay_nal"):
-                    bot.send_message(message.chat.id, "Выплата произведена успешно")
-                else:
-                    bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-            except ConnectionError as e:
-                bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-                bot.send_message(config.admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["kp_balance"], state=[MyStates.host, MyStates.admin])
@@ -477,7 +514,7 @@ def admin_password_handler(message: Message):
             with bot.retrieve_data(bot.user.id) as data:
                 failed_admins = data.get("failed_admins", [])
             failed_admins.append(message.from_user.id)
-            bot.add_data(bot.user.id, failed_hosts=failed_admins)
+            bot.add_data(bot.user.id, failed_admins=failed_admins)
             bot.send_message(message.chat.id, "Неверный  пароль, попытки кончились")
         else:
             bot.set_state(message.chat.id, MyStates.admin_password)
@@ -518,9 +555,10 @@ def kp_name_handler(message: Message):
     with bot.retrieve_data(message.chat.id) as data:
         kp_one_time = data.get("kp_one_time")
     try:
-        if database.add.point(message.text, kp_one_time):
+        point_id = database.add.point(message.text, kp_one_time)
+        if point_id:
             bot.set_state(message.chat.id, MyStates.admin)
-            bot.send_message(message.chat.id, "КП успешно зарегистрирована")
+            bot.send_message(message.chat.id, f"КП успешно зарегистрирована, point_id: {point_id}")
         else:
             bot.send_message(message.chat.id, "КП с таким названием уже есть, попробуйте другое название")
     except ConnectionError as e:

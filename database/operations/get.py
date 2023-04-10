@@ -64,7 +64,7 @@ def user_queue(tg_id: int) -> Queue | None:
 def user_queue_place(tg_id: int) -> int | None:
     try:
         date = (
-            select(func.max(Queue.date))
+            select(Queue.date)
             .join(User.queue.and_(User.tg_id == tg_id))
             .scalar_subquery()
         )
@@ -76,7 +76,6 @@ def user_queue_place(tg_id: int) -> int | None:
         main = (
             select(func.count())
             .select_from(Queue)
-            .join(Point.queues)
             .where(Queue.date <= date)
             .where(Queue.point_id == point_id)
         )
@@ -135,15 +134,32 @@ def point_balance(point_id: int) -> int | None:
         raise ConnectionError("Something wrong with the database while get.point_balance!")
 
 
-def free_points() -> list[tuple[int, str]]:
+def free_points(tg_id: int) -> list[tuple[int, str]]:
     try:
+        blacklisted_point_ids = (
+            select(BlackList.point_id)
+            .join(User.blacklist.and_(User.tg_id == tg_id))
+            .scalar_subquery()
+        )
         with Session() as session:
             points = session.execute(
                 select(Point.id, Point.name)
                 .outerjoin(Queue.point)
                 .where(Queue.point_id.is_(None))
+                .where(Point.id.notin_(blacklisted_point_ids))
                 .where(Point.active.is_(True))
             ).all()
         return [point_[0] for point_ in points]
     except exc.SQLAlchemyError:
         raise ConnectionError("Something wrong with the database while get.free_points!")
+
+
+def all_points() -> list[tuple[int, str]]:
+    try:
+        with Session() as session:
+            points = session.execute(
+                select(Point.id, Point.name)
+            ).all()
+        return [point_[0] for point_ in points]
+    except exc.SQLAlchemyError:
+        raise ConnectionError("Something wrong with the database while get.all_points!")

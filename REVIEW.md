@@ -1,0 +1,98 @@
+# Review
+
+### Commands
+
+- `/start`, state None
+  - suggest to register as player, state reg_buttons
+  - reg buttons, state reg_buttons
+    - delete state, reg or nothing
+- `/help`, any state
+  - send help message
+- `/reg`, state None
+  - ask team name, state team_name
+- team_name, state team_name
+  - `database.add.user` - fine
+  - delete state, try to add player, send team id, repeat if failed
+- `/balance`, state team
+  - `database.get.balance` - fine
+  - send balance or error
+- `/transfer <amount> to <recipient>`, state team
+  - `database.update.transfer` - fine
+  - check args, perform transfer, send transfer success or error
+- `/queue_to <point_id>`, state team
+  - `database.add.queue` - fine
+  - check args, add queue, send queue success or error
+- `/place`, state team
+  - `database.get.user_queue_place` - fine
+  - get place, send place or error
+- `/remove_queue`, state team
+  - `database.remove.queue` - fine
+  - check if team is active, decline if so, remove queue, send success or error
+- `/list_free`, state team, host, admin
+  - `database.get.free_points` - fine
+  - get free points (excluding blacklisted), send list or that there are no free points
+- `/list_all`, state team, host, admin
+  - `database.get.all_points` - fine
+  - get all points, send list or that there are no points
+- `/stop`, state team
+  - set state stop, send stop message
+- `/reg_host`, state None
+  - check if host has already tried to register, decline if so, ask host password, state host_password
+- host_password, state host_password
+  - check if password is correct, repeat if not (3 retries), else ask host name, state host_name
+- host_name, state host_name
+  - `database.add.user` - fine
+  - delete state, try to add host, set state host, send success, repeat if failed
+- `/add_host_to <point_id>`, state host
+  - `database.update.host` - fine
+  - check args, add host to the point, send success or error
+- `/remove_host`, state host
+  - `database.update.host` - fine
+  - check if current_team_id is present, decline if so, remove host, send success or error
+- `/reg_team <team_name>`, state host, admin
+  - `database.add.user` - fine
+  - check args, add team, send team id or error
+- `/queue_team <team_id> to <point_id>`, state host, admin
+  - `database.add.queue` - fine
+  - check args, add queue, send success or error
+- `/remove_team_queue <team_id>`, state host, admin
+  - `database.remove.queue` - fine
+  - check args, remove queue, send success or error
+- `/transfer_from_team <team_id> <amount> to <recipient>`, state host, admin
+  - `database.update.transfer` - fine
+  - check args, perform transfer, send success or error
+- `/start_team`, state host
+  - `database.get.point_next_team` - fine
+  - check args, add current_team_id and current_team_tg_id to the state payload, set active=True if team has tg_id, send success or error
+- `/payment <amount>`, `/payment_nal <amount>`, state host
+  - `database.update.payment` - fine
+  - check if current_team_id is present, decline if not, check args, perform payment, send success or error
+- `/pay <amount>`, `/pay_nal <amount>`, state host
+  - `database.update.pay` - fine
+  - check if current_team_id is present, decline if not, check args, perform pay, send success or error
+- `/stop_team`, state host
+  - `database.remove.queue` - fine
+  - check if current_team_id is present, decline if not, set active=False if current team has tg_id, send success or error
+- `/kp_pause`, state host
+  - `database.update.pause` - fine
+  - pause point, send success or error
+- `/kp_resume`, state host
+  - `database.update.resume` - fine
+  - resume point, send success or error
+- `/kp_balance <point_id>`, state host, admin
+  - `database.get.point_balance` - fine
+  - check args, get balance, send balance or error
+- `/reg_admin`, state None
+  - check if admin has already tried to register, decline if so, ask admin password, state admin_password
+- admin_password, state admin_password
+  - check if password is correct, repeat if not (3 retries), else ask admin name, state admin_name
+- admin_name, state admin_name
+  - `database.add.user` - fine
+  - delete state, try to add admin, set state admin, send success, repeat if failed
+- `/reg_kp`, state admin
+  - ask if point is one_time, state kp_one_time
+- kp_one_time, state kp_one_time, text "да" or "нет"
+  - add answer to the data, ask point name, state kp_name
+- kp_name, state kp_name
+  - `database.add.point` - fine
+  - delete state, try to add point, set state admin, send success, repeat if failed
