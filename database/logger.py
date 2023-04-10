@@ -1,5 +1,7 @@
 import logging
 
+import config
+
 
 def setup_logger():
     logger_ = logging.getLogger('Database')
@@ -10,12 +12,13 @@ def setup_logger():
     )
 
     stderr_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler('database.log')
-    file_handler.setFormatter(formatter)
     stderr_handler.setFormatter(formatter)
-
-    logger_.addHandler(file_handler)
     logger_.addHandler(stderr_handler)
+
+    if config.database_log_file is not None:
+        file_handler = logging.FileHandler(config.database_log_file)
+        file_handler.setFormatter(formatter)
+        logger_.addHandler(file_handler)
 
     return logger_
 

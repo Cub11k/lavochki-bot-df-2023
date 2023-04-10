@@ -14,6 +14,14 @@ from database.operations import (
 )
 
 
+# STRICTLY FOR TESTING PURPOSES
+def drop_all():
+    from database.config import engine
+    from database.models import BaseModel
+
+    BaseModel.metadata.drop_all(engine)
+
+
 def create_all():
     from database.config import engine
     from database.models import BaseModel
