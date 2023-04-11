@@ -16,7 +16,7 @@ def setup_logger():
     logger_.addHandler(stderr_handler)
 
     if config.bot_log_file is not None:
-        file_handler = logging.FileHandler(config.bot_log_file)
+        file_handler = logging.FileHandler(config.bot_log_file, encoding='utf-8')
         file_handler.setFormatter(formatter)
         logger_.addHandler(file_handler)
 
