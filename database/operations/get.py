@@ -168,6 +168,19 @@ def point_balance(point_id: int) -> int | None:
 
 
 @log
+def point_is_free(point_id: int) -> bool:
+    try:
+        with Session() as session:
+            is_free = session.execute(
+                select(Queue.point_id)
+                .where(Queue.point_id == point_id)
+            ).first()
+        return is_free is None
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.point_is_free, error code: {e.code}!")
+
+
+@log
 def free_points(tg_id: int) -> list[tuple[int, str]]:
     try:
         blacklisted_point_ids = (
@@ -178,7 +191,8 @@ def free_points(tg_id: int) -> list[tuple[int, str]]:
         with Session() as session:
             points = session.execute(
                 select(Point.id, Point.name)
-                .outerjoin(Queue.point)
+                .select_from(Point)
+                .outerjoin(Queue)
                 .where(Queue.point_id.is_(None))
                 .where(Point.id.notin_(blacklisted_point_ids))
                 .where(Point.active.is_(True))

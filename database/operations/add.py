@@ -10,12 +10,12 @@ from database.logger import log
 
 
 @log
-def user(role: Role, name: str, tg_id: Optional[int] = None) -> int | Literal[False]:
+def user(role: Role, name: str, tg_id: Optional[int] = None, balance: Optional[int] = 0) -> int | Literal[False]:
     try:
         with Session.begin() as session:
             result = session.execute(
                 insert(User)
-                .values(tg_id=tg_id, role=role, name=name)
+                .values(tg_id=tg_id, role=role, name=name, balance=balance)
             ).inserted_primary_key
     except exc.IntegrityError:
         return False
@@ -64,7 +64,11 @@ def queue(point_id: int, date: datetime, user_id: Optional[int] = None, tg_id: O
                     .where(BlackList.point_id == point_id)
                 )
             ).scalar()
-            if not black_list_exists:
+            point_is_active = session.execute(
+                select(Point.active)
+                .where(Point.id == point_id)
+            ).scalar()
+            if point_is_active and not black_list_exists:
                 result = session.execute(
                     insert(Queue)
                     .values(team_id=team_id,

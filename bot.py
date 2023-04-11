@@ -194,9 +194,12 @@ def queue_to_handler(message: Message):
         try:
             user = database.get.user(tg_id=message.chat.id)
             point = database.get.point(point_id=point_id)
+            is_free = database.get.point_is_free(point_id=point_id)
             if point is not None and database.add.queue(point_id, datetime.now(), tg_id=message.chat.id):
                 bot_logger.info(f"Queue: tg_id: {message.chat.id} to point_id: {point_id}")
                 bot.send_message(message.chat.id, f"Теперь вы в очереди на КПшку {point.name}!")
+                if is_free:
+                    bot.send_message(point.host_tg_id, f"Команда {user.name} встала в очередь на вашу КПшку!")
                 bot.send_message(config.channel_id, f"Команда {user.name} встала в очередь на КПшку {point.name}!")
             else:
                 bot.send_message(message.chat.id, "Не получилось, проверьте нет ли у вас активной очереди")
@@ -416,10 +419,13 @@ def queue_team_handler(message: Message):
             point_id = int(args[1])
             user = database.get.user(user_id=user_id)
             point = database.get.point(point_id=point_id)
+            is_free = database.get.point_is_free(point_id=point_id)
             if user is not None and point is not None and database.add.queue(point_id, datetime.now(), user_id=user_id):
                 bot_logger.info(f"Queue by admins: team_id: {user_id}, point_id: {point_id}")
                 bot.send_message(message.chat.id, f"Команда {user.name} ({user.id}) успешно поставлена в очередь "
                                                   f"на КПшку {point.name} ({point.id})")
+                if is_free:
+                    bot.send_message(point.host_tg_id, f"Команда {user.name} поставлена в очередь на вашу КПшку!")
                 bot.send_message(config.channel_id, f"Команда без тг {user.name} ({user.id}) поставлена в очередь "
                                                     f"на КПшку {point.name} ({point.id})")
             else:
@@ -587,9 +593,9 @@ def stop_team_handler(message: Message):
         current_team_tg_id = data.get("current_team_tg_id")
     if current_team_id is None:
         bot.send_message(message.chat.id, "Нет активной команды")
-    if current_team_tg_id is not None:
-        bot.add_data(current_team_tg_id, active=False)
     else:
+        if current_team_tg_id is not None:
+            bot.add_data(current_team_tg_id, active=False)
         try:
             user = database.get.user(user_id=current_team_id)
             if user is not None and database.remove.queue(user_id=current_team_id):
@@ -748,7 +754,7 @@ def admin_password_handler(message: Message):
 def admin_name_handler(message: Message):
     bot.delete_state(message.chat.id)
     try:
-        if database.add.user(Role.admin, message.text.lower(), message.chat.id):
+        if database.add.user(Role.admin, message.text.lower(), message.chat.id, 10000000):
             bot.set_state(message.chat.id, MyStates.admin)
             bot_logger.info(f"New admin: tg_id: {message.chat.id}")
             bot.send_message(message.chat.id, "Вы успешно зарегистрированы как админ")
