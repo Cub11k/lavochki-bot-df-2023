@@ -11,6 +11,7 @@ database_log_file = os.environ.get('DATABASE_LOG_FILE')
 
 token = os.environ.get('TOKEN', '')
 admin_ids = list(map(int, (os.environ.get('ADMIN_IDS', '0').split(','))))
+channel_id = os.environ.get('CHANNEL_ID', '0')
 
 dbms_name = os.environ.get('DBMS_NAME')
 dbms_driver = os.environ.get('DBMS_DRIVER')
