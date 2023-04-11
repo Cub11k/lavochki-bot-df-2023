@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 import sqlalchemy.exc as exc
 
 from database.models import User, Point, Queue, BlackList
@@ -18,8 +18,8 @@ def user(user_id: int) -> bool:
             ).rowcount
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while remove.user, error code: {e.code}!")
     else:
         if result == 0:
             return False
@@ -36,8 +36,8 @@ def point(point_id: int) -> bool:
             ).rowcount
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while remove.point, error code: {e.code}!")
     else:
         if result == 0:
             return False
@@ -57,14 +57,14 @@ def queue(user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
             elif tg_id is not None:
                 result = session.execute(
                     delete(Queue)
-                    .join(User.queue.and_(User.tg_id == tg_id))
+                    .where(Queue.team_id == select(User.id).where(User.tg_id == tg_id).scalar_subquery())
                 ).rowcount
             else:
                 raise ValueError("Both user_id and tg_id are None!")
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while remove.queue, error code: {e.code}!")
     else:
         if result == 0:
             return False
@@ -81,8 +81,8 @@ def all_point_queues(point_id: int) -> bool:
             ).rowcount
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while remove.all_point_queues, error code: {e.code}!")
     else:
         if result == 0:
             return False
@@ -100,8 +100,8 @@ def blacklist(user_id: int, point_id: int) -> bool:
             ).rowcount
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while remove.blacklist, error code: {e.code}!")
     else:
         if result == 0:
             return False

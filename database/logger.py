@@ -26,9 +26,14 @@ def setup_logger():
 def log(func):
     def wrapper(*args, **kwargs):
         logger.info(f'Function {func.__module__}.{func.__name__} called with args: {args}, kwargs: {kwargs}')
-        result = func(*args, **kwargs)
-        logger.info(f'Function {func.__module__}.{func.__name__} returned {result}')
-        return result
+        try:
+            result = func(*args, **kwargs)
+        except ConnectionError as e:
+            logger.error(f'Function {func.__module__}.{func.__name__} raised {e}')
+            raise e
+        else:
+            logger.info(f'Function {func.__module__}.{func.__name__} returned {result}')
+            return result
 
     return wrapper
 

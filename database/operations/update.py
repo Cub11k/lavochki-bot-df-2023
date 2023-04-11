@@ -38,8 +38,8 @@ def transfer(to_user_id: int, amount: int, from_user_id: Optional[int] = None,
                 session.rollback()
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while update.transfer, error code: {e.code}!")
     else:
         if result == 0:
             return False
@@ -67,8 +67,8 @@ def host(host_tg_id: int, point_id: Optional[int] = None, remove: Optional[bool]
                 raise ValueError("Both point_id is None and remove is False!")
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while update.host, error code: {e.code}!")
     else:
         if result == 0:
             return False
@@ -94,8 +94,8 @@ def payment(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
                 session.rollback()
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while update.payment, error code: {e.code}!")
     else:
         if result == 0:
             return False
@@ -131,8 +131,8 @@ def pay(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
                 session.rollback()
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while update.pay, error code: {e.code}!")
     else:
         if result == 0:
             return False
@@ -151,8 +151,8 @@ def pause(host_tg_id: int) -> bool:
             ).rowcount
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while update.pause, error code: {e.code}!")
     else:
         if result == 0:
             return False
@@ -171,8 +171,27 @@ def resume(host_tg_id: int) -> bool:
             ).rowcount
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while update.resume, error code: {e.code}!")
+    else:
+        if result == 0:
+            return False
+        return True
+
+
+@log
+def add_cash(amount: int, point_id: int) -> bool:
+    try:
+        with Session.begin() as session:
+            result = session.execute(
+                update(Point)
+                .where(Point.id == point_id)
+                .values(balance=Point.balance + amount)
+            ).rowcount
+    except exc.IntegrityError:
+        return False
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while update.add_cash, error code: {e.code}!")
     else:
         if result == 0:
             return False

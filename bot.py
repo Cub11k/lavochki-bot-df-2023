@@ -4,7 +4,7 @@ import telebot
 from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from telebot.custom_filters import StateFilter, ChatFilter
 from telebot.handler_backends import State, StatesGroup
-from telebot.storage import StateMemoryStorage, StateRedisStorage
+from telebot.storage import StateRedisStorage
 from telebot.util import extract_arguments, extract_command, antiflood
 
 import config
@@ -12,10 +12,9 @@ from logger import bot_logger
 import database
 from database import Role
 
-storage = StateRedisStorage(host=config.redis_host, port=config.redis_port,
-                            password=config.redis_password) if not config.test else StateMemoryStorage()
+storage = StateRedisStorage(host=config.redis_host, port=config.redis_port, password=config.redis_password)
 
-bot = telebot.TeleBot(token=config.token)
+bot = telebot.TeleBot(token=config.token, state_storage=storage)
 
 
 class MyStates(StatesGroup):
@@ -63,6 +62,7 @@ def help_handler(message: Message):
     msg = (
         "Список команд:\n\n"
         "/start - начать работу с ботом\n"
+        "/cancel - отменить текущее действие\n"
         "/reg - зарегистрировать команду\n"
         "/reg_host - зарегистрировать КПшника\n"
         "/reg_admin - зарегистрировать админа\n"
@@ -102,11 +102,19 @@ def help_handler(message: Message):
         msg += (
             "/reg_team <team_name> - зарегистрировать команду\n"
             "/queue_team <team_id> to <point_id> - занять очередь на КПшку для выбранной команды\n"
-            "remove_team_queue <team_id> - отменить очередь для выбранной команды\n"
+            "/remove_team_queue <team_id> - отменить очередь для выбранной команды\n"
             "/transfer_from_team <team_id> <amount> to <recipient> - перевести деньги другой команде\n"
             "/kp_balance <point_id> - баланс КПшки (наличка)\n"
         )
     bot.send_message(message.chat.id, msg)
+
+
+@bot.message_handler(commands=["cancel"], state=[MyStates.team_name, MyStates.host_password, MyStates.host_name,
+                                                 MyStates.admin_password, MyStates.admin_name,
+                                                 MyStates.kp_one_time, MyStates.kp_name])
+def cancel_handler(message: Message):
+    bot.delete_state(message.chat.id)
+    bot.send_message(message.chat.id, "Отменено")
 
 
 @bot.message_handler(commands=["reg"], state=[None])
@@ -123,7 +131,7 @@ def team_name_handler(message: Message):
         if team_id:
             bot.set_state(message.chat.id, MyStates.team)
             bot_logger.info(f"New team: {message.text.lower()} (tg_id: {message.chat.id}, team_id: {team_id})")
-            bot.send_message(message.chat.id, f"Ваш номер счёта: {team_id}")
+            bot.send_message(message.chat.id, f"Ваш номер команды: {team_id}")
             bot.send_message(config.channel_id,
                              f"Новая команда: {message.text.lower()} (tg_id: {message.chat.id}, team_id: {team_id})")
         else:
@@ -184,7 +192,7 @@ def queue_to_handler(message: Message):
     else:
         point_id = int(args)
         try:
-            user = database.get.user(user_tg_id=message.chat.id)
+            user = database.get.user(tg_id=message.chat.id)
             point = database.get.point(point_id=point_id)
             if point is not None and database.add.queue(point_id, datetime.now(), tg_id=message.chat.id):
                 bot_logger.info(f"Queue: tg_id: {message.chat.id} to point_id: {point_id}")
@@ -221,7 +229,7 @@ def remove_queue_handler(message: Message):
         bot.send_message(message.chat.id, "Вы не можете отменить очередь, пока находитесь на КПшке")
     else:
         try:
-            user = database.get.user(user_tg_id=message.chat.id)
+            user = database.get.user(tg_id=message.chat.id)
             if database.remove.queue(tg_id=message.chat.id):
                 bot_logger.info(f"Remove queue: tg_id: {message.chat.id}")
                 bot.send_message(message.chat.id, "Очередь отменена!")
@@ -267,11 +275,10 @@ def list_all_handler(message: Message):
 
 @bot.message_handler(commands=["stop"], state=MyStates.team)
 def stop_handler(message: Message):
-    bot.set_state(message.chat.id, MyStates.stop)
     bot_logger.info(f"Stop: tg_id: {message.chat.id}")
     bot.send_message(message.chat.id, "Спасибо за участие!")
     try:
-        user = database.get.user(user_tg_id=message.chat.id)
+        user = database.get.user(tg_id=message.chat.id)
         if user is not None:
             bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) закончила участие")
         database.remove.queue(tg_id=message.chat.id)
@@ -388,7 +395,7 @@ def reg_team_handler(message: Message):
             team_id = database.add.user(Role.player, team_name.lower())
             if team_id:
                 bot_logger.info(f"New team by admins: name: {team_name}, team_id: {team_id}")
-                bot.send_message(message.chat.id, f"Ваш номер счёта: {team_id}")
+                bot.send_message(message.chat.id, f"Ваш номер команды: {team_id}")
                 bot.send_message(config.channel_id, f"Команда без тг {team_name}, team_id: {team_id}, зарегистрирована")
             else:
                 bot.send_message(message.chat.id, "Такая команда уже существует, попробуйте другое название")
@@ -464,6 +471,25 @@ def transfer_from_team_handler(message: Message):
                                                   f"команде {to_user.name} ({to_user.id})")
                 bot.send_message(config.channel_id, f"Переведено {amount} от команды {from_user.name} ({from_user.id}) "
                                                     f"команде {to_user.name} ({to_user.id})")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["balance_team"], state=[MyStates.host, MyStates.admin])
+def balance_team_handler(message: Message):
+    args = extract_arguments(message.text)
+    if len(args) == 0 or not args.isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            user_id = int(args)
+            user = database.get.user(user_id=user_id)
+            if user is not None:
+                bot.send_message(message.chat.id, f"Баланс команды {user.name} ({user.id}): {user.balance}")
             else:
                 bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
         except ConnectionError as e:
@@ -630,6 +656,31 @@ def kp_balance_handler(message: Message):
                 antiflood(bot.send_message, admin_id, e.args[0])
 
 
+@bot.message_handler(commands=["kp_queue"], state=[MyStates.host, MyStates.admin])
+def kp_queue_handler(message: Message):
+    args = extract_arguments(message.text)
+    if len(args) == 0 or not args.isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            point_id = int(args)
+            point = database.get.point(point_id=point_id)
+            if point is not None:
+                queues = database.get.point_queues(point_id)
+                if len(queues) > 0:
+                    msg = "\n".join([f'{user[0]} ({user[1]})' for user in queues])
+                    bot.send_message(message.chat.id, f"Очередь на КПшку {point.name}:\n"
+                                                      f"{msg}")
+                else:
+                    bot.send_message(message.chat.id, f"Очередь на КПшку {point.name} пуста")
+            else:
+                bot.send_message(message.chat.id, "Не удалось получить очередь на КПшку")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
 @bot.message_handler(commands=["total_money"], state=[MyStates.host, MyStates.admin])
 def total_money_handler(message: Message):
     try:
@@ -711,6 +762,44 @@ def admin_name_handler(message: Message):
             antiflood(bot.send_message, admin_id, e.args[0])
 
 
+@bot.message_handler(commands=["add_cash"], state=MyStates.admin)
+def add_cash_handler(message: Message):
+    args = extract_arguments(message.text).split(" to ")
+    if len(args) != 2 or not args[0].isdigit() or not args[1].isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            amount = int(args[0])
+            point_id = int(args[1])
+            point = database.get.point(point_id=point_id)
+            if database.update.add_cash(amount, point_id):
+                bot.send_message(message.chat.id, "Успешно")
+                bot_logger.info(f"Admin {message.from_user.id} added {amount} to {point_id}")
+                bot.send_message(config.channel_id, f"Админ {message.from_user.id} добавил {amount} кэша "
+                                                    f"на {point.name} ({point.id})")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["all_users"], state=MyStates.admin)
+def all_users_handler(message: Message):
+    try:
+        users = database.get.all_users()
+        if len(users) > 0:
+            msg = "\n".join([f"{user.name} ({user.id}), роль: {user.role}, баланс: {user.balance}" for user in users])
+            bot.send_message(message.chat.id, msg)
+        else:
+            bot.send_message(message.chat.id, "Пользователей нет")
+    except ConnectionError as e:
+        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
+
+
 @bot.message_handler(commands=["reg_kp"], state=MyStates.admin)
 def reg_kp_handler(message: Message):
     bot.set_state(message.chat.id, MyStates.kp_one_time)
@@ -757,6 +846,68 @@ def admin_password_handler(message: Message):
     bot.add_data(bot.user.id, admin_password=password)
     bot_logger.info(f"Пароль для админов успешно установлен, \"{password}\"")
     bot.send_message(message.chat.id, f"Пароль для админов успешно установлен, \"{password}\"")
+
+
+@bot.message_handler(commands=["remove_user"], chat_id=config.admin_ids)
+def delete_user_handler(message: Message):
+    args = extract_arguments(message.text)
+    if len(args) == 0 or not args.isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            user_id = int(args)
+            if database.remove.user(user_id):
+                bot.send_message(message.chat.id, "Успешно")
+                bot_logger.info(f"User {args} deleted")
+                bot.send_message(config.channel_id, f"Админ {message.from_user.id} удалил пользователя {user_id}")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["remove_point"], chat_id=config.admin_ids)
+def delete_point_handler(message: Message):
+    args = extract_arguments(message.text)
+    if len(args) == 0 or not args.isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            point_id = int(args)
+            if database.remove.point(point_id):
+                bot.send_message(message.chat.id, "Успешно")
+                bot_logger.info(f"Point {point_id} deleted")
+                bot.send_message(config.channel_id, f"Админ {message.from_user.id} удалил КПшку {point_id}")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["remove_blacklist"], chat_id=config.admin_ids)
+def delete_blacklist_handler(message: Message):
+    args = extract_arguments(message.text).split()
+    if len(args) != 2 or not args[0].isdigit() or not args[1].isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            user_id = int(args[0])
+            point_id = int(args[1])
+            if database.remove.blacklist(user_id, point_id):
+                bot.send_message(message.chat.id, "Успешно")
+                bot_logger.info(f"Blacklist ({user_id},{point_id}) deleted")
+                bot.send_message(config.channel_id, f"Админ {message.from_user.id} удалил "
+                                                    f"blacklist ({user_id},{point_id})")
+            else:
+                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
+        except ConnectionError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 database.create_all()

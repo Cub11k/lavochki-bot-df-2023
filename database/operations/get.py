@@ -14,7 +14,7 @@ def user(tg_id: Optional[int] = None, user_id: Optional[int] = None) -> User | N
         with Session() as session:
             user_ = None
             if user_id is not None:
-                user_ = session.get(User, user_id)
+                user_ = (session.get(User, user_id),)
             elif tg_id is not None:
                 user_ = session.execute(
                     select(User)
@@ -23,8 +23,8 @@ def user(tg_id: Optional[int] = None, user_id: Optional[int] = None) -> User | N
             else:
                 raise ValueError("Both user_id and tg_id are None!")
         return user_ if user_ is None else user_[0]
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.user!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.user, error code: {e.code}!")
 
 
 @log
@@ -36,8 +36,8 @@ def user_balance(tg_id: int) -> int | None:
                 .where(User.tg_id == tg_id)
             ).first()
         return balance if balance is None else balance[0]
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.user_balance!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.user_balance, error code: {e.code}!")
 
 
 @log
@@ -49,8 +49,8 @@ def user_role(tg_id: int) -> Role | None:
                 .where(User.tg_id == tg_id)
             ).first()
         return role if role is None else role[0]
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.user_role!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.user_role, error code {e.code}!")
 
 
 @log
@@ -62,8 +62,8 @@ def user_queue(tg_id: int) -> Queue | None:
                 .join(User.queue.and_(User.tg_id == tg_id))
             ).first()
         return queue if queue is None else queue[0]
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.user_queue!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.user_queue, error code {e.code}!")
 
 
 @log
@@ -88,8 +88,18 @@ def user_queue_place(tg_id: int) -> int | None:
         with Session() as session:
             place = session.execute(main).first()
         return place if place is None else place[0]
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.user_queue_place!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.user_queue_place, code: {e.code}!")
+
+
+@log
+def all_users() -> list[User]:
+    try:
+        with Session() as session:
+            users = session.execute(select(User)).all()
+        return users
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.all_users, error code: {e.code}!")
 
 
 @log
@@ -97,7 +107,7 @@ def point(host_tg_id: Optional[int] = None, point_id: Optional[int] = None) -> P
     try:
         with Session() as session:
             if point_id is not None:
-                point_ = session.get(Point, point_id)
+                point_ = (session.get(Point, point_id),)
             elif host_tg_id is not None:
                 point_ = session.execute(
                     select(Point)
@@ -106,8 +116,8 @@ def point(host_tg_id: Optional[int] = None, point_id: Optional[int] = None) -> P
             else:
                 raise ValueError("Both point_id and host_tg_id are None!")
         return point_ if point_ is None else point_[0]
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.point!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.point, error code: {e.code}!")
 
 
 @log
@@ -126,8 +136,22 @@ def point_next_team(host_tg_id: int) -> User | None:
                 .limit(1)
             ).first()
         return user_ if user_ is None else user_[0]
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.point_queue!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.point_queue, error code: {e.code}!")
+
+
+@log
+def point_queues(point_id: int) -> list[str, int]:
+    try:
+        with Session() as session:
+            queues = session.execute(
+                select(User.name, User.id)
+                .join(Queue.team.and_(Queue.point_id == point_id))
+                .order_by(Queue.date.asc())
+            ).all()
+        return queues
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.point_queue, error code: {e.code}!")
 
 
 @log
@@ -139,8 +163,8 @@ def point_balance(point_id: int) -> int | None:
                 .where(Point.id == point_id)
             ).first()
         return balance if balance is None else balance[0]
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.point_balance!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.point_balance, error code: {e.code}!")
 
 
 @log
@@ -160,8 +184,8 @@ def free_points(tg_id: int) -> list[tuple[int, str]]:
                 .where(Point.active.is_(True))
             ).all()
         return points
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.free_points!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.free_points, error code: {e.code}!")
 
 
 @log
@@ -173,8 +197,8 @@ def all_points() -> list[tuple[int, str, int]]:
                 .order_by(Point.balance.asc())
             ).all()
         return points
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.all_points!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.all_points, error code: {e.code}!")
 
 
 @log
@@ -189,5 +213,5 @@ def total_money() -> tuple[int, int]:
                 .where(User.role == Role.player)
             ).first()
         return 0 if points_total is None else points_total[0], 0 if users_total is None else users_total[0]
-    except exc.SQLAlchemyError:
-        raise ConnectionError("Something wrong with the database while get.total_money!")
+    except exc.SQLAlchemyError as e:
+        raise ConnectionError(f"Something wrong with the database while get.total_money, error code: {e.code}!")

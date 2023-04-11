@@ -5,6 +5,7 @@ import config
 
 def setup_logger():
     logger_ = logging.getLogger('LavochkiBot')
+    logger_.setLevel(logging.INFO)
 
     formatter = logging.Formatter(
         '%(asctime)s %(levelname)s - %(name)s: "%(message)s"'
