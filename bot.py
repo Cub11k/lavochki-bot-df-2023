@@ -168,15 +168,14 @@ def team_name_handler(message: Message):
 def balance_handler(message: Message):
     try:
         balance = database.get.user_balance(message.chat.id)
-    except SQLAlchemyError as e:
-        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        for admin_id in config.admin_ids:
-            antiflood(bot.send_message, admin_id, e.args[0])
-    else:
         if balance is not None:
             bot.send_message(message.chat.id, f"Ваш баланс - {balance}")
         else:
             bot.send_message(message.chat.id, "Не удалось получить данные о балансе")
+    except SQLAlchemyError as e:
+        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["transfer"], state=MyStates.team)
@@ -233,15 +232,14 @@ def queue_to_handler(message: Message):
 def place_handler(message: Message):
     try:
         place = database.get.user_queue_place(message.chat.id)
-    except SQLAlchemyError as e:
-        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        for admin_id in config.admin_ids:
-            antiflood(bot.send_message, admin_id, e.args[0])
-    else:
         if place is None:
             bot.send_message(message.chat.id, "У вас нет активной очереди")
         else:
             bot.send_message(message.chat.id, f"Ваше место в очереди - {place}")
+    except SQLAlchemyError as e:
+        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["remove_queue"], state=MyStates.team)
