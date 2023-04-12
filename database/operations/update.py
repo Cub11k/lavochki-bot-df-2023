@@ -36,14 +36,9 @@ def transfer(to_user_id: int, amount: int, from_user_id: Optional[int] = None,
                 ).rowcount
             if result == 0:
                 session.rollback()
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while update.transfer, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -65,14 +60,9 @@ def host(host_tg_id: int, point_id: Optional[int] = None, remove: Optional[bool]
                 ).rowcount
             else:
                 raise ValueError("Both point_id is None and remove is False!")
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while update.host, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -92,14 +82,9 @@ def payment(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
                 ).rowcount
             if result == 0:
                 session.rollback()
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while update.payment, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -129,14 +114,9 @@ def pay(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
                 ).rowcount
             if result == 0:
                 session.rollback()
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while update.pay, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -149,14 +129,9 @@ def pause(host_tg_id: int) -> bool:
                 .where(Point.active.is_(True))
                 .values(active=False)
             ).rowcount
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while update.pause, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -169,14 +144,9 @@ def resume(host_tg_id: int) -> bool:
                 .where(Point.active.is_(False))
                 .values(active=True)
             ).rowcount
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while update.resume, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -188,11 +158,6 @@ def add_cash(amount: int, point_id: int) -> bool:
                 .where(Point.id == point_id)
                 .values(balance=Point.balance + amount)
             ).rowcount
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while update.add_cash, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True

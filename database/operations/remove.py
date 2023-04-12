@@ -16,14 +16,9 @@ def user(user_id: int) -> bool:
                 delete(User)
                 .where(User.id == user_id)
             ).rowcount
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while remove.user, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -34,14 +29,9 @@ def point(point_id: int) -> bool:
                 delete(Point)
                 .where(Point.id == point_id)
             ).rowcount
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while remove.point, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -61,14 +51,9 @@ def queue(user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
                 ).rowcount
             else:
                 raise ValueError("Both user_id and tg_id are None!")
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while remove.queue, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -79,14 +64,9 @@ def all_point_queues(point_id: int) -> bool:
                 delete(Queue)
                 .where(Queue.point_id == point_id)
             ).rowcount
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while remove.all_point_queues, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -98,11 +78,6 @@ def blacklist(user_id: int, point_id: int) -> bool:
                 .where(BlackList.team_id == user_id)
                 .where(BlackList.point_id == point_id)
             ).rowcount
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while remove.blacklist, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True

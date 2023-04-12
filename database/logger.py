@@ -1,5 +1,7 @@
 import logging
 
+import sqlalchemy.exc as exc
+
 import config
 
 
@@ -28,12 +30,11 @@ def log(func):
         logger.info(f'Function {func.__module__}.{func.__name__} called with args: {args}, kwargs: {kwargs}')
         try:
             result = func(*args, **kwargs)
-        except ConnectionError as e:
-            logger.error(f'Function {func.__module__}.{func.__name__} raised {e}')
-            raise e
-        else:
             logger.info(f'Function {func.__module__}.{func.__name__} returned {result}')
             return result
+        except exc.SQLAlchemyError as e:
+            logger.error(f'Function {func.__module__}.{func.__name__} raised {e}')
+            raise exc.SQLAlchemyError(f"{func.__module__}.{func.__name__}, error description: {e.args[0]}!")
 
     return wrapper
 

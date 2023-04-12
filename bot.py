@@ -5,7 +5,9 @@ from telebot.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from telebot.custom_filters import StateFilter, ChatFilter
 from telebot.handler_backends import State, StatesGroup
 from telebot.storage import StateRedisStorage
-from telebot.util import extract_arguments, extract_command, antiflood
+from telebot.util import extract_arguments, extract_command, antiflood, smart_split
+
+from sqlalchemy.exc import SQLAlchemyError
 
 import config
 from logger import bot_logger
@@ -13,7 +15,6 @@ import database
 from database import Role
 
 storage = StateRedisStorage(host=config.redis_host, port=config.redis_port, password=config.redis_password)
-
 bot = telebot.TeleBot(token=config.token, state_storage=storage)
 
 
@@ -60,7 +61,7 @@ def reg_buttons_handler(call: CallbackQuery):
 def help_handler(message: Message):
     state = bot.get_state(message.chat.id)
     msg = (
-        "Список команд:\n\n"
+        "Список команд для всех:\n\n"
         "/start - начать работу с ботом\n"
         "/cancel - отменить текущее действие\n"
         "/reg - зарегистрировать команду\n"
@@ -72,6 +73,7 @@ def help_handler(message: Message):
     )
     if state == MyStates.team.name:
         msg += (
+            "Список команд для участников:\n\n"
             "/balance - баланс команды\n"
             "/transfer <amount> to <recipient> - перевести деньги другой команде\n"
             "/queue_to <point_id> - занять очередь на КПшку\n"
@@ -81,6 +83,7 @@ def help_handler(message: Message):
         )
     if state == MyStates.host.name:
         msg += (
+            "Список команд для КПшников:\n\n"
             "/add_host_to <point_id> - стать КПшником на выбранной точке\n"
             "/remove_host - перестать быть КПшником на выбранной точке\n"
             "/start_team - начать работу с командой\n"
@@ -94,17 +97,34 @@ def help_handler(message: Message):
         )
     if state == MyStates.admin.name:
         msg += (
+            "Список команд для админов:\n\n"
             "/reg_kp - зарегистрировать КПшку\n"
-            "/total_money - общее количество денег\n"
             "/kp_balance_all - баланс всех КПшек по возрастанию (наличка)\n"
+            "/add_cash <amount> to <point_id> - добавить наличку на КПшку\n"
+            "/all_teams - список всех команд\n"
+            "/all_hosts - список всех КПшников\n"
+            "/all_admins - список всех админов\n"
         )
     if state in [MyStates.host.name, MyStates.admin.name]:
         msg += (
+            "Список команд для КПшников и админов:\n\n"
             "/reg_team <team_name> - зарегистрировать команду\n"
+            "/balance_team <team_id> - баланс команды\n"
             "/queue_team <team_id> to <point_id> - занять очередь на КПшку для выбранной команды\n"
             "/remove_team_queue <team_id> - отменить очередь для выбранной команды\n"
             "/transfer_from_team <team_id> <amount> to <recipient> - перевести деньги другой команде\n"
             "/kp_balance <point_id> - баланс КПшки (наличка)\n"
+            "/kp_queue <point_id> - очередь на КПшку\n"
+            "/total_money - общее количество денег\n"
+        )
+    if message.chat.id in config.admin_ids:
+        msg += (
+            "Список команд для главных админов:\n\n"
+            "/host_password <password> - установить пароль для КПшников\n"
+            "/admin_password <password> - установить пароль для админов\n"
+            "/remove_user <user_id> - удалить пользователя\n"
+            "/remove_point <point_id> - удалить КПшку\n"
+            "/remove_blacklist <user_id> <point_id> - удалить пользователя из черного списка КПшки\n"
         )
     bot.send_message(message.chat.id, msg)
 
@@ -137,7 +157,7 @@ def team_name_handler(message: Message):
         else:
             bot.set_state(message.chat.id, MyStates.team_name)
             bot.send_message(message.chat.id, "Такая команда уже существует, попробуйте другое название")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.set_state(message.chat.id, MyStates.team_name)
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
@@ -148,7 +168,7 @@ def team_name_handler(message: Message):
 def balance_handler(message: Message):
     try:
         balance = database.get.user_balance(message.chat.id)
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -177,8 +197,8 @@ def transfer_handler(message: Message):
                 bot.send_message(config.channel_id, f"Команда {from_user.name} ({from_user.id}) перевела {amount} "
                                                     f"команде {user.name} ({user.id})")
             else:
-                bot.send_message(message.chat.id, "Не получилось, проверьте правильность введенных данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось выполнить перевод")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -202,8 +222,8 @@ def queue_to_handler(message: Message):
                     bot.send_message(point.host_tg_id, f"Команда {user.name} встала в очередь на вашу КПшку!")
                 bot.send_message(config.channel_id, f"Команда {user.name} встала в очередь на КПшку {point.name}!")
             else:
-                bot.send_message(message.chat.id, "Не получилось, проверьте нет ли у вас активной очереди")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось встать в очередь")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -213,7 +233,7 @@ def queue_to_handler(message: Message):
 def place_handler(message: Message):
     try:
         place = database.get.user_queue_place(message.chat.id)
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -238,8 +258,8 @@ def remove_queue_handler(message: Message):
                 bot.send_message(message.chat.id, "Очередь отменена!")
                 bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) отменила очередь!")
             else:
-                bot.send_message(message.chat.id, "Не получилось, проверьте есть ли у вас очередь")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось отменить очередь")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -249,16 +269,18 @@ def remove_queue_handler(message: Message):
 def list_free_handler(message: Message):
     try:
         points = database.get.free_points(message.chat.id)
-    except ConnectionError as e:
+        if len(points) > 0:
+            list_msg = f"Свободные КПшки:\n"
+            list_msg += "\n".join(f"{point[0]} - {point[1]}" for point in points)
+            msgs = smart_split(list_msg)
+            for msg in msgs:
+                antiflood(bot.send_message, message.chat.id, msg)
+        else:
+            bot.send_message(message.chat.id, "Свободных КПшек нет")
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
-    else:
-        if len(points) > 0:
-            msg = "\n".join(f"{point[0]} - {point[1]}" for point in points)
-            bot.send_message(message.chat.id, f"Свободные КПшки:\n{msg}")
-        else:
-            bot.send_message(message.chat.id, "Свободных КПшек нет")
 
 
 @bot.message_handler(commands=["list_all"], state=[MyStates.team, MyStates.host, MyStates.admin])
@@ -266,11 +288,13 @@ def list_all_handler(message: Message):
     try:
         points = database.get.all_points()
         if len(points) > 0:
-            msg = "\n".join(f"{point[0]} ({point[1]})" for point in points)
-            bot.send_message(message.chat.id, f"Все КПшки:\n{msg}")
+            list_msg = "\n".join(f"{point[0]} ({point[1]})" for point in points)
+            msgs = smart_split(list_msg)
+            for msg in msgs:
+                antiflood(bot.send_message, message.chat.id, msg)
         else:
             bot.send_message(message.chat.id, "КПшек нет")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -285,7 +309,7 @@ def stop_handler(message: Message):
         if user is not None:
             bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) закончила участие")
         database.remove.queue(tg_id=message.chat.id)
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -340,7 +364,7 @@ def host_name_handler(message: Message):
         else:
             bot.set_state(message.chat.id, MyStates.host_name)
             bot.send_message(message.chat.id, "КПшник с таким именем уже есть, попробуйте другое имя")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -361,8 +385,8 @@ def add_host_to_handler(message: Message):
                 bot.send_message(config.channel_id, f"КПшник, tg_id: {message.chat.id}, "
                                                     f"перешёл на КПшку {point.name} ({point_id})")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось перейти на КПшку")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -381,8 +405,8 @@ def remove_host_handler(message: Message):
                 bot.send_message(message.chat.id, f"Теперь вы можете стать КПшником на другой КПшке")
                 bot.send_message(config.channel_id, f"КПшник, tg_id: {message.chat.id}, покинул КПшку")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось покинуть КПшку")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -399,10 +423,10 @@ def reg_team_handler(message: Message):
             if team_id:
                 bot_logger.info(f"New team by admins: name: {team_name}, team_id: {team_id}")
                 bot.send_message(message.chat.id, f"Ваш номер команды: {team_id}")
-                bot.send_message(config.channel_id, f"Команда без тг {team_name}, team_id: {team_id}, зарегистрирована")
+                bot.send_message(config.channel_id, f"Команда {team_name}, team_id: {team_id}, зарегистрирована")
             else:
                 bot.send_message(message.chat.id, "Такая команда уже существует, попробуйте другое название")
-        except ConnectionError as e:
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -426,11 +450,11 @@ def queue_team_handler(message: Message):
                                                   f"на КПшку {point.name} ({point.id})")
                 if is_free:
                     bot.send_message(point.host_tg_id, f"Команда {user.name} поставлена в очередь на вашу КПшку!")
-                bot.send_message(config.channel_id, f"Команда без тг {user.name} ({user.id}) поставлена в очередь "
+                bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) поставлена в очередь "
                                                     f"на КПшку {point.name} ({point.id})")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных и нет ли у команды очереди")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось поставить команду в очередь")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -448,10 +472,10 @@ def remove_team_queue_handler(message: Message):
             if user is not None and database.remove.queue(user_id=user_id):
                 bot_logger.info(f"Remove queue by admins: team_id: {user_id}")
                 bot.send_message(message.chat.id, f"Команда {user.name} ({user.id}) успешно удалена из очереди")
-                bot.send_message(config.channel_id, f"Команда без тг {user.name} ({user.id}) удалена из очереди")
+                bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) удалена из очереди")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось удалить команду из очереди")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -478,8 +502,8 @@ def transfer_from_team_handler(message: Message):
                 bot.send_message(config.channel_id, f"Переведено {amount} от команды {from_user.name} ({from_user.id}) "
                                                     f"команде {to_user.name} ({to_user.id})")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось выполнить перевод")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -497,8 +521,8 @@ def balance_team_handler(message: Message):
             if user is not None:
                 bot.send_message(message.chat.id, f"Баланс команды {user.name} ({user.id}): {user.balance}")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось получить баланс команды")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -519,7 +543,7 @@ def start_team_handler(message: Message):
                                                 f"на КПшке {point.name} ({point.id})")
         else:
             bot.send_message(message.chat.id, "На вашу КПшку нет команд в очереди")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -549,8 +573,8 @@ def payment_handler(message: Message):
                     bot.send_message(config.channel_id, f"Списано {amount} со счёта команды {user.name} ({user.id}), "
                                                         f"{'наличка' if cash else 'крипта'}")
                 else:
-                    bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-            except ConnectionError as e:
+                    bot.send_message(message.chat.id, "Не удалось выполнить оплату")
+            except SQLAlchemyError as e:
                 bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
                 for admin_id in config.admin_ids:
                     antiflood(bot.send_message, admin_id, e.args[0])
@@ -579,8 +603,8 @@ def pay_handler(message: Message):
                     bot.send_message(config.channel_id, f"Зачислено {amount} на счёт команды {user.name} ({user.id}), "
                                                         f"{'наличка' if cash else 'крипта'}")
                 else:
-                    bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-            except ConnectionError as e:
+                    bot.send_message(message.chat.id, "Не удалось выполнить выплату")
+            except SQLAlchemyError as e:
                 bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
                 for admin_id in config.admin_ids:
                     antiflood(bot.send_message, admin_id, e.args[0])
@@ -604,8 +628,8 @@ def stop_team_handler(message: Message):
                 bot.send_message(message.chat.id, "Работа с командой успешно завершена")
                 bot.send_message(config.channel_id, f"Работа с командой {user.name} ({user.id}) завершена")
             else:
-                bot.send_message(message.chat.id, "Не удалось удалить очередь активной команды")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось завершить работу с командой")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -621,7 +645,7 @@ def pause_kp_handler(message: Message):
             bot.send_message(config.channel_id, f"КПшка {point.name} ({point.id}) приостановлена")
         else:
             bot.send_message(message.chat.id, "КПшка не активна")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -637,7 +661,7 @@ def resume_kp_handler(message: Message):
             bot.send_message(config.channel_id, f"КП {point.name} ({point.id}) возобновлена")
         else:
             bot.send_message(message.chat.id, "КП не приостановлена")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -656,7 +680,7 @@ def kp_balance_handler(message: Message):
                 bot.send_message(message.chat.id, f"Баланс КП {point.name}: {point.balance}")
             else:
                 bot.send_message(message.chat.id, "Не удалось получить баланс КП")
-        except ConnectionError as e:
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -674,14 +698,16 @@ def kp_queue_handler(message: Message):
             if point is not None:
                 queues = database.get.point_queues(point_id)
                 if len(queues) > 0:
-                    msg = "\n".join([f'{user[0]} ({user[1]})' for user in queues])
-                    bot.send_message(message.chat.id, f"Очередь на КПшку {point.name}:\n"
-                                                      f"{msg}")
+                    list_msg = f"Очередь на КПшку {point.name}:\n"
+                    list_msg += "\n".join([f'{user[0]} ({user[1]})' for user in queues])
+                    msgs = smart_split(list_msg)
+                    for msg in msgs:
+                        antiflood(bot.send_message, message.chat.id, msg)
                 else:
                     bot.send_message(message.chat.id, f"Очередь на КПшку {point.name} пуста")
             else:
                 bot.send_message(message.chat.id, "Не удалось получить очередь на КПшку")
-        except ConnectionError as e:
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -694,7 +720,7 @@ def total_money_handler(message: Message):
         bot.send_message(message.chat.id, f"Налички на КПшках и в магазине: {points_total}\n"
                                           f"Денег на счету у команд: {teams_total}\n"
                                           f"Всего: {points_total + teams_total}")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -705,11 +731,13 @@ def kp_balance_all_handler(message: Message):
     try:
         points = database.get.all_points()
         if len(points) > 0:
-            msg = "\n".join([f"{point[0]} ({point[1]}): {point[2]}" for point in points])
-            bot.send_message(message.chat.id, msg)
+            list_msg = "\n".join([f"{point[0]} ({point[1]}): {point[2]}" for point in points])
+            msgs = smart_split(list_msg)
+            for msg in msgs:
+                antiflood(bot.send_message, message.chat.id, msg)
         else:
             bot.send_message(message.chat.id, "Нет КПшек")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -754,15 +782,16 @@ def admin_password_handler(message: Message):
 def admin_name_handler(message: Message):
     bot.delete_state(message.chat.id)
     try:
-        if database.add.user(Role.admin, message.text.lower(), message.chat.id, 10000000):
+        admin_id = database.add.user(Role.admin, message.text.lower(), message.chat.id, 10000000)
+        if admin_id:
             bot.set_state(message.chat.id, MyStates.admin)
-            bot_logger.info(f"New admin: tg_id: {message.chat.id}")
-            bot.send_message(message.chat.id, "Вы успешно зарегистрированы как админ")
+            bot_logger.info(f"New admin: {message.text.lower()}, tg_id: {message.chat.id}, user_id: {admin_id}")
+            bot.send_message(message.chat.id, f"Вы успешно зарегистрированы как админ, ваш id: {admin_id}")
             bot.send_message(config.channel_id, f"Новый админ: {message.text.lower()} (tg_id: {message.chat.id})")
         else:
             bot.set_state(message.chat.id, MyStates.admin_name)
             bot.send_message(message.chat.id, "Админ с таким именем уже есть, попробуйте другое имя")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -784,23 +813,28 @@ def add_cash_handler(message: Message):
                 bot.send_message(config.channel_id, f"Админ {message.from_user.id} добавил {amount} кэша "
                                                     f"на {point.name} ({point.id})")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось добавить кэш")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
 
 
-@bot.message_handler(commands=["all_users"], state=MyStates.admin)
+@bot.message_handler(commands=["all_teams", "all_hosts", "all_admins"], state=MyStates.admin)
 def all_users_handler(message: Message):
+    command = extract_command(message.text)
+    role = Role.admin if command == "all_admins" else Role.host if command == "all_hosts" else Role.player
     try:
-        users = database.get.all_users()
+        users = database.get.all_users(role)
         if len(users) > 0:
-            msg = "\n".join([f"{user.name} ({user.id}), роль: {user.role}, баланс: {user.balance}" for user in users])
-            bot.send_message(message.chat.id, msg)
+            list_msg = f"Список пользователей, всего {len(users)}:\n"
+            list_msg += "\n".join([f"{user.name} ({user.id}), баланс: {user.balance}" for user in users])
+            msgs = smart_split(list_msg)
+            for msg in msgs:
+                antiflood(bot.send_message, message.chat.id, msg)
         else:
             bot.send_message(message.chat.id, "Пользователей нет")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -832,7 +866,7 @@ def kp_name_handler(message: Message):
             bot.send_message(config.channel_id, f"Новая КП: {message.text} (point_id: {point_id})")
         else:
             bot.send_message(message.chat.id, "КП с таким названием уже есть, попробуйте другое название")
-    except ConnectionError as e:
+    except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
@@ -867,8 +901,8 @@ def delete_user_handler(message: Message):
                 bot_logger.info(f"User {args} deleted")
                 bot.send_message(config.channel_id, f"Админ {message.from_user.id} удалил пользователя {user_id}")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось удалить пользователя")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -887,8 +921,8 @@ def delete_point_handler(message: Message):
                 bot_logger.info(f"Point {point_id} deleted")
                 bot.send_message(config.channel_id, f"Админ {message.from_user.id} удалил КПшку {point_id}")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось удалить КПшку")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])
@@ -909,8 +943,8 @@ def delete_blacklist_handler(message: Message):
                 bot.send_message(config.channel_id, f"Админ {message.from_user.id} удалил "
                                                     f"blacklist ({user_id},{point_id})")
             else:
-                bot.send_message(message.chat.id, "Проверьте правильность введённых данных")
-        except ConnectionError as e:
+                bot.send_message(message.chat.id, "Не удалось удалить blacklist")
+        except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
                 antiflood(bot.send_message, admin_id, e.args[0])

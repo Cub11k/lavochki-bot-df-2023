@@ -21,7 +21,7 @@ class BaseModel(DeclarativeBase):
 class User(BaseModel):
     __tablename__ = 'users'
 
-    id = mapped_column(Integer, Identity(start=1048576, increment=2048), primary_key=True)
+    id = mapped_column(Integer, Identity(start=10, increment=3), primary_key=True)
     tg_id = mapped_column(BigInteger, unique=True, nullable=True)
     role = mapped_column(Enum(Role), nullable=False)
     name = mapped_column(String(255), unique=True, nullable=False)

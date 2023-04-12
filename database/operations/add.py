@@ -17,12 +17,9 @@ def user(role: Role, name: str, tg_id: Optional[int] = None, balance: Optional[i
                 insert(User)
                 .values(tg_id=tg_id, role=role, name=name, balance=balance)
             ).inserted_primary_key
+        return result[0]
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while add.user, error code: {e.code}!")
-    else:
-        return result[0]
 
 
 @log
@@ -33,12 +30,9 @@ def point(name: str, one_time: bool, host_tg_id: Optional[int] = None, balance: 
                 insert(Point)
                 .values(host_tg_id=host_tg_id, name=name, balance=balance, one_time=one_time)
             ).inserted_primary_key
+        return result[0]
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while add.point, error code: {e.code}!")
-    else:
-        return result[0]
 
 
 @log
@@ -75,14 +69,9 @@ def queue(point_id: int, date: datetime, user_id: Optional[int] = None, tg_id: O
                             point_id=point_id,
                             date=date)
                 ).rowcount
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while add.queue, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
 
 
 @log
@@ -101,11 +90,6 @@ def blacklist(point_id: int, user_id: Optional[int] = None, tg_id: Optional[int]
                 .values(team_id=team_id,
                         point_id=point_id)
             ).rowcount
+        return result != 0
     except exc.IntegrityError:
         return False
-    except exc.SQLAlchemyError as e:
-        raise ConnectionError(f"Something wrong with the database while add.blacklist, error code: {e.code}!")
-    else:
-        if result == 0:
-            return False
-        return True
