@@ -89,7 +89,7 @@ def all_users(role: Role) -> list[User]:
             select(User)
             .where(User.role == role)
         ).all()
-    return users
+    return [user_[0] for user_ in users]
 
 
 @log

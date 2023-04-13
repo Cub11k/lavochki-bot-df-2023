@@ -198,7 +198,7 @@ def transfer_handler(message: Message):
         amount = int(args[0])
         recipient = int(args[1])
         try:
-            from_user = database.get.user(user_tg_id=message.chat.id)
+            from_user = database.get.user(tg_id=message.chat.id)
             user = database.get.user(user_id=recipient)
             if user is not None and database.update.transfer(recipient, amount, from_user_tg_id=message.chat.id):
                 bot_logger.info(f"Transfer: {amount} from tg_id: {message.chat.id} to team_id: {recipient}")
@@ -713,7 +713,7 @@ def id_team_handler(message: Message):
 
 @bot.message_handler(commands=["kp_id"], state=[MyStates.host, MyStates.admin])
 def kp_id_handler(message: Message):
-    args = extract_arguments(message.text)
+    args = extract_arguments(message.text).lower()
     if len(args) == 0:
         bot.send_message(message.chat.id, "Неверный формат")
     else:
@@ -920,15 +920,16 @@ def kp_one_time_handler(message: Message):
 
 @bot.message_handler(state=MyStates.kp_name)
 def kp_name_handler(message: Message):
+    name = message.text.lower()
     with bot.retrieve_data(message.chat.id) as data:
         kp_one_time = data.get("kp_one_time")
     try:
-        point_id = database.add.point(message.text, kp_one_time)
+        point_id = database.add.point(name, kp_one_time)
         if point_id:
             bot.set_state(message.chat.id, MyStates.admin)
-            bot_logger.info(f"New point: name: {message.text}, one_time: {kp_one_time}, point_id: {point_id}")
+            bot_logger.info(f"New point: name: {name}, one_time: {kp_one_time}, point_id: {point_id}")
             bot.send_message(message.chat.id, f"КПшка успешно зарегистрирована, point_id: {point_id}")
-            bot.send_message(config.channel_id, f"Новая КП: {message.text} (point_id: {point_id})")
+            bot.send_message(config.channel_id, f"Новая КП: {name} (point_id: {point_id})")
         else:
             bot.send_message(message.chat.id, "КПшка с таким названием уже есть, попробуйте другое название")
     except SQLAlchemyError as e:
