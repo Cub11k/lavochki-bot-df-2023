@@ -44,7 +44,8 @@ def start_handler(message: Message):
     keyboard.row(InlineKeyboardButton("Да", callback_data="reg_yes"),
                  InlineKeyboardButton("Нет", callback_data="reg_no"))
     bot.set_state(message.chat.id, MyStates.reg_buttons)
-    bot.send_message(message.chat.id, "Привет! Хотите зарегистрироваться как участник / команда?", reply_markup=keyboard)
+    bot.send_message(message.chat.id, "Привет! Хотите зарегистрироваться как участник / команда?",
+                     reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reg_"), state=MyStates.reg_buttons)
