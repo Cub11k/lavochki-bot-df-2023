@@ -9,7 +9,7 @@ from database.logger import log
 
 
 @log
-def user(tg_id: Optional[int] = None, user_id: Optional[int] = None) -> User | None:
+def user(tg_id: Optional[int] = None, user_id: Optional[int] = None, name: Optional[str] = None) -> User | None:
     with Session() as session:
         user_ = None
         if user_id is not None:
@@ -19,8 +19,13 @@ def user(tg_id: Optional[int] = None, user_id: Optional[int] = None) -> User | N
                 select(User)
                 .where(User.tg_id == tg_id)
             ).first()
+        elif name is not None:
+            user_ = session.execute(
+                select(User)
+                .where(User.name == name)
+            ).first()
         else:
-            raise ValueError("Both user_id and tg_id are None!")
+            raise ValueError("user_id, tg_id and name are None!")
     return user_ if user_ is None else user_[0]
 
 
@@ -88,7 +93,7 @@ def all_users(role: Role) -> list[User]:
 
 
 @log
-def point(host_tg_id: Optional[int] = None, point_id: Optional[int] = None) -> Point | None:
+def point(host_tg_id: Optional[int] = None, point_id: Optional[int] = None, name: Optional[str] = None) -> Point | None:
     with Session() as session:
         if point_id is not None:
             point_ = (session.get(Point, point_id),)
@@ -97,8 +102,13 @@ def point(host_tg_id: Optional[int] = None, point_id: Optional[int] = None) -> P
                 select(Point)
                 .where(Point.host_tg_id == host_tg_id)
             ).first()
+        elif name is not None:
+            point_ = session.execute(
+                select(Point)
+                .where(Point.name == name)
+            ).first()
         else:
-            raise ValueError("Both point_id and host_tg_id are None!")
+            raise ValueError("point_id, host_tg_id and name are None!")
     return point_ if point_ is None else point_[0]
 
 

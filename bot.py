@@ -44,7 +44,7 @@ def start_handler(message: Message):
     keyboard.row(InlineKeyboardButton("Да", callback_data="reg_yes"),
                  InlineKeyboardButton("Нет", callback_data="reg_no"))
     bot.set_state(message.chat.id, MyStates.reg_buttons)
-    bot.send_message(message.chat.id, "Привет! Хотите зарегистрировать команду?", reply_markup=keyboard)
+    bot.send_message(message.chat.id, "Привет! Хотите зарегистрироваться как участник / команда?", reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reg_"), state=MyStates.reg_buttons)
@@ -67,9 +67,6 @@ def help_handler(message: Message):
         "/reg - зарегистрировать команду\n"
         "/reg_host - зарегистрировать КПшника\n"
         "/reg_admin - зарегистрировать админа\n"
-        "/my_id - узнать свой id\n"
-        "/list_free - список свободных КПшек\n"
-        "/list_all - список всех КПшек\n"
         "/help - список команд\n"
     )
     if state == MyStates.team.name:
@@ -81,6 +78,13 @@ def help_handler(message: Message):
             "/place - место в очереди\n"
             "/remove_queue - отменить свою очередь\n"
             "/stop - закончить участие\n"
+        )
+    if state in [MyStates.team.name, MyStates.host.name, MyStates.admin.name]:
+        msg += (
+            "Список команд для участников, КПшников и админов:\n\n"
+            "/my_id - узнать свой id\n"
+            "/list_free - список свободных КПшек\n"
+            "/list_all - список всех КПшек\n"
         )
     if state == MyStates.host.name:
         msg += (
@@ -96,6 +100,20 @@ def help_handler(message: Message):
             "/kp_pause - приостановить работу КПшки\n"
             "/kp_resume - возобновить работу КПшки\n"
         )
+    if state in [MyStates.host.name, MyStates.admin.name]:
+        msg += (
+            "Список команд для КПшников и админов:\n\n"
+            "/reg_team <team_name> - зарегистрировать команду\n"
+            "/balance_team <team_id> - узнать баланс команды\n"
+            "/id_team <team_name> - узнать id команды\n"
+            "/queue_team <team_id> to <kp_id> - занять очередь на КПшку для выбранной команды\n"
+            "/remove_queue_team <team_id> - отменить очередь для выбранной команды\n"
+            "/transfer_from_team <team_id> <amount> to <recipient> - перевести деньги другой команде\n"
+            "/kp_id <kp_name> - узнать id КПшки\n"
+            "/kp_balance <kp_id> - баланс КПшки (наличка)\n"
+            "/kp_queue <kp_id> - очередь на КПшку\n"
+            "/total_money - общее количество денег\n"
+        )
     if state == MyStates.admin.name:
         msg += (
             "Список команд для админов:\n\n"
@@ -106,23 +124,11 @@ def help_handler(message: Message):
             "/all_hosts - список всех КПшников\n"
             "/all_admins - список всех админов\n"
         )
-    if state in [MyStates.host.name, MyStates.admin.name]:
-        msg += (
-            "Список команд для КПшников и админов:\n\n"
-            "/reg_team <team_name> - зарегистрировать команду\n"
-            "/balance_team <team_id> - баланс команды\n"
-            "/queue_team <team_id> to <kp_id> - занять очередь на КПшку для выбранной команды\n"
-            "/remove_team_queue <team_id> - отменить очередь для выбранной команды\n"
-            "/transfer_from_team <team_id> <amount> to <recipient> - перевести деньги другой команде\n"
-            "/kp_balance <kp_id> - баланс КПшки (наличка)\n"
-            "/kp_queue <kp_id> - очередь на КПшку\n"
-            "/total_money - общее количество денег\n"
-        )
     if message.chat.id in config.admin_ids:
         msg += (
             "Список команд для главных админов:\n\n"
-            "/host_password <password> - установить пароль для КПшников\n"
-            "/admin_password <password> - установить пароль для админов\n"
+            "/new_host_password <password> - установить пароль для КПшников\n"
+            "/new_admin_password <password> - установить пароль для админов\n"
             "/remove_user <user_id> - удалить пользователя\n"
             "/remove_kp <kp_id> - удалить КПшку\n"
             "/remove_blacklist <team_id> <kp_id> - удалить команду из черного списка КПшки\n"
@@ -141,7 +147,7 @@ def cancel_handler(message: Message):
 @bot.message_handler(commands=["reg"], state=[None])
 def reg_handler(message: Message):
     bot.set_state(message.chat.id, MyStates.team_name)
-    bot.send_message(message.chat.id, "Введите название команды")
+    bot.send_message(message.chat.id, "Введите название вашей команды / участника")
 
 
 @bot.message_handler(state=MyStates.team_name)
@@ -267,6 +273,21 @@ def remove_queue_handler(message: Message):
                 antiflood(bot.send_message, admin_id, e.args[0])
 
 
+@bot.message_handler(commands=["stop"], state=MyStates.team)
+def stop_handler(message: Message):
+    bot_logger.info(f"Stop: tg_id: {message.chat.id}")
+    bot.send_message(message.chat.id, "Спасибо за участие!")
+    try:
+        user = database.get.user(tg_id=message.chat.id)
+        if user is not None:
+            bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) закончила участие")
+        database.remove.queue(tg_id=message.chat.id)
+    except SQLAlchemyError as e:
+        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
+
+
 @bot.message_handler(commands=["my_id"], state=[MyStates.team, MyStates.host, MyStates.admin])
 def my_id_handler(message: Message):
     try:
@@ -310,21 +331,6 @@ def list_all_handler(message: Message):
                 antiflood(bot.send_message, message.chat.id, msg)
         else:
             bot.send_message(message.chat.id, "КПшек нет")
-    except SQLAlchemyError as e:
-        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        for admin_id in config.admin_ids:
-            antiflood(bot.send_message, admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["stop"], state=MyStates.team)
-def stop_handler(message: Message):
-    bot_logger.info(f"Stop: tg_id: {message.chat.id}")
-    bot.send_message(message.chat.id, "Спасибо за участие!")
-    try:
-        user = database.get.user(tg_id=message.chat.id)
-        if user is not None:
-            bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) закончила участие")
-        database.remove.queue(tg_id=message.chat.id)
     except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
@@ -425,122 +431,6 @@ def remove_host_handler(message: Message):
                 bot.send_message(config.channel_id, f"КПшник, tg_id: {message.chat.id}, покинул КПшку")
             else:
                 bot.send_message(message.chat.id, "Не удалось покинуть КПшку")
-        except SQLAlchemyError as e:
-            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            for admin_id in config.admin_ids:
-                antiflood(bot.send_message, admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["reg_team"], state=[MyStates.host, MyStates.admin])
-def reg_team_handler(message: Message):
-    team_name = extract_arguments(message.text)
-    if len(team_name) == 0:
-        bot.send_message(message.chat.id, "Неверный формат")
-    else:
-        try:
-            team_id = database.add.user(Role.player, team_name.lower())
-            if team_id:
-                bot_logger.info(f"New team by admins: name: {team_name}, team_id: {team_id}")
-                bot.send_message(message.chat.id, f"Ваш номер команды: {team_id}")
-                bot.send_message(config.channel_id, f"Команда {team_name}, team_id: {team_id}, зарегистрирована")
-            else:
-                bot.send_message(message.chat.id, "Такая команда уже существует, попробуйте другое название")
-        except SQLAlchemyError as e:
-            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            for admin_id in config.admin_ids:
-                antiflood(bot.send_message, admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["queue_team"], state=[MyStates.host, MyStates.admin])
-def queue_team_handler(message: Message):
-    args = extract_arguments(message.text).split(" to ")
-    if len(args) != 2 or not args[0].isdigit() or not args[1].isdigit():
-        bot.send_message(message.chat.id, "Неверный формат")
-    else:
-        try:
-            user_id = int(args[0])
-            point_id = int(args[1])
-            user = database.get.user(user_id=user_id)
-            point = database.get.point(point_id=point_id)
-            is_free = database.get.point_is_free(point_id=point_id)
-            if user is not None and point is not None and database.add.queue(point_id, datetime.now(), user_id=user_id):
-                bot_logger.info(f"Queue by admins: team_id: {user_id}, point_id: {point_id}")
-                bot.send_message(message.chat.id, f"Команда {user.name} ({user.id}) успешно поставлена в очередь "
-                                                  f"на КПшку {point.name} ({point.id})")
-                if is_free:
-                    bot.send_message(point.host_tg_id, f"Команда {user.name} поставлена в очередь на вашу КПшку!")
-                bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) поставлена в очередь "
-                                                    f"на КПшку {point.name} ({point.id})")
-            else:
-                bot.send_message(message.chat.id, "Не удалось поставить команду в очередь")
-        except SQLAlchemyError as e:
-            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            for admin_id in config.admin_ids:
-                antiflood(bot.send_message, admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["remove_team_queue"], state=[MyStates.host, MyStates.admin])
-def remove_team_queue_handler(message: Message):
-    args = extract_arguments(message.text)
-    if len(args) == 0 or not args.isdigit():
-        bot.send_message(message.chat.id, "Неверный формат")
-    else:
-        try:
-            user_id = int(args)
-            user = database.get.user(user_id=user_id)
-            if user is not None and database.remove.queue(user_id=user_id):
-                bot_logger.info(f"Remove queue by admins: team_id: {user_id}")
-                bot.send_message(message.chat.id, f"Команда {user.name} ({user.id}) успешно удалена из очереди")
-                bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) удалена из очереди")
-            else:
-                bot.send_message(message.chat.id, "Не удалось удалить команду из очереди")
-        except SQLAlchemyError as e:
-            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            for admin_id in config.admin_ids:
-                antiflood(bot.send_message, admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["transfer_from_team"], state=[MyStates.host, MyStates.admin])
-def transfer_from_team_handler(message: Message):
-    args = extract_arguments(message.text).split(" to ")
-    args1 = args[0].split()
-    if len(args1) != 2 or not args1[0].isdigit() or not args1[1].isdigit() or len(args) != 2 or not args[1].isdigit():
-        bot.send_message(message.chat.id, "Неверный формат")
-    else:
-        try:
-            from_user_id = int(args1[0])
-            amount = int(args1[1])
-            recipient = int(args[1])
-            from_user = database.get.user(user_id=from_user_id)
-            to_user = database.get.user(user_id=recipient)
-            if database.update.transfer(recipient, amount, from_user_id=from_user_id):
-                bot_logger.info(f"Transfer by admins: from_team_id: {from_user_id}, amount: {amount}, to: {recipient}")
-                bot.send_message(message.chat.id, f"Перевод выполнен успешно! "
-                                                  f"Переведено {amount} от команды {from_user.name} ({from_user.id}) "
-                                                  f"команде {to_user.name} ({to_user.id})")
-                bot.send_message(config.channel_id, f"Переведено {amount} от команды {from_user.name} ({from_user.id}) "
-                                                    f"команде {to_user.name} ({to_user.id})")
-            else:
-                bot.send_message(message.chat.id, "Не удалось выполнить перевод")
-        except SQLAlchemyError as e:
-            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-            for admin_id in config.admin_ids:
-                antiflood(bot.send_message, admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["balance_team"], state=[MyStates.host, MyStates.admin])
-def balance_team_handler(message: Message):
-    args = extract_arguments(message.text)
-    if len(args) == 0 or not args.isdigit():
-        bot.send_message(message.chat.id, "Неверный формат")
-    else:
-        try:
-            user_id = int(args)
-            user = database.get.user(user_id=user_id)
-            if user is not None:
-                bot.send_message(message.chat.id, f"Баланс команды {user.name} ({user.id}): {user.balance}")
-            else:
-                bot.send_message(message.chat.id, "Не удалось получить баланс команды")
         except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
@@ -655,7 +545,7 @@ def stop_team_handler(message: Message):
 
 
 @bot.message_handler(commands=["kp_pause"], state=MyStates.host)
-def pause_kp_handler(message: Message):
+def kp_pause_handler(message: Message):
     try:
         point = database.get.point(host_tg_id=message.chat.id)
         if database.update.pause(message.chat.id):
@@ -671,19 +561,171 @@ def pause_kp_handler(message: Message):
 
 
 @bot.message_handler(commands=["kp_resume"], state=MyStates.host)
-def resume_kp_handler(message: Message):
+def kp_resume_handler(message: Message):
     try:
         point = database.get.point(host_tg_id=message.chat.id)
         if database.update.resume(message.chat.id):
             bot_logger.info(f"Resume kp: host_tg_id: {message.chat.id}")
-            bot.send_message(message.chat.id, "КП успешно возобновлена")
-            bot.send_message(config.channel_id, f"КП {point.name} ({point.id}) возобновлена")
+            bot.send_message(message.chat.id, "КПшка успешно возобновлена")
+            bot.send_message(config.channel_id, f"КПшка {point.name} ({point.id}) возобновлена")
         else:
-            bot.send_message(message.chat.id, "КП не приостановлена")
+            bot.send_message(message.chat.id, "КПшка не приостановлена")
     except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["reg_team"], state=[MyStates.host, MyStates.admin])
+def reg_team_handler(message: Message):
+    team_name = extract_arguments(message.text)
+    if len(team_name) == 0:
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            team_id = database.add.user(Role.player, team_name.lower())
+            if team_id:
+                bot_logger.info(f"New team by admins: name: {team_name}, team_id: {team_id}")
+                bot.send_message(message.chat.id, f"Ваш номер команды: {team_id}")
+                bot.send_message(config.channel_id, f"Команда {team_name}, team_id: {team_id}, зарегистрирована")
+            else:
+                bot.send_message(message.chat.id, "Такая команда уже существует, попробуйте другое название")
+        except SQLAlchemyError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["queue_team"], state=[MyStates.host, MyStates.admin])
+def queue_team_handler(message: Message):
+    args = extract_arguments(message.text).split(" to ")
+    if len(args) != 2 or not args[0].isdigit() or not args[1].isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            user_id = int(args[0])
+            point_id = int(args[1])
+            user = database.get.user(user_id=user_id)
+            point = database.get.point(point_id=point_id)
+            is_free = database.get.point_is_free(point_id=point_id)
+            if user is not None and point is not None and database.add.queue(point_id, datetime.now(), user_id=user_id):
+                bot_logger.info(f"Queue by admins: team_id: {user_id}, point_id: {point_id}")
+                bot.send_message(message.chat.id, f"Команда {user.name} ({user.id}) успешно поставлена в очередь "
+                                                  f"на КПшку {point.name} ({point.id})")
+                if is_free:
+                    bot.send_message(point.host_tg_id, f"Команда {user.name} поставлена в очередь на вашу КПшку!")
+                bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) поставлена в очередь "
+                                                    f"на КПшку {point.name} ({point.id})")
+            else:
+                bot.send_message(message.chat.id, "Не удалось поставить команду в очередь")
+        except SQLAlchemyError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["remove_queue_team"], state=[MyStates.host, MyStates.admin])
+def remove_queue_team_handler(message: Message):
+    args = extract_arguments(message.text)
+    if len(args) == 0 or not args.isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            user_id = int(args)
+            user = database.get.user(user_id=user_id)
+            if user is not None and database.remove.queue(user_id=user_id):
+                bot_logger.info(f"Remove queue by admins: team_id: {user_id}")
+                bot.send_message(message.chat.id, f"Команда {user.name} ({user.id}) успешно удалена из очереди")
+                bot.send_message(config.channel_id, f"Команда {user.name} ({user.id}) удалена из очереди")
+            else:
+                bot.send_message(message.chat.id, "Не удалось удалить команду из очереди")
+        except SQLAlchemyError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["transfer_from_team"], state=[MyStates.host, MyStates.admin])
+def transfer_from_team_handler(message: Message):
+    args = extract_arguments(message.text).split(" to ")
+    args1 = args[0].split()
+    if len(args1) != 2 or not args1[0].isdigit() or not args1[1].isdigit() or len(args) != 2 or not args[1].isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            from_user_id = int(args1[0])
+            amount = int(args1[1])
+            recipient = int(args[1])
+            from_user = database.get.user(user_id=from_user_id)
+            to_user = database.get.user(user_id=recipient)
+            if database.update.transfer(recipient, amount, from_user_id=from_user_id):
+                bot_logger.info(f"Transfer by admins: from_team_id: {from_user_id}, amount: {amount}, to: {recipient}")
+                bot.send_message(message.chat.id, f"Перевод выполнен успешно! "
+                                                  f"Переведено {amount} от команды {from_user.name} ({from_user.id}) "
+                                                  f"команде {to_user.name} ({to_user.id})")
+                bot.send_message(config.channel_id, f"Переведено {amount} от команды {from_user.name} ({from_user.id}) "
+                                                    f"команде {to_user.name} ({to_user.id})")
+            else:
+                bot.send_message(message.chat.id, "Не удалось выполнить перевод")
+        except SQLAlchemyError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["balance_team"], state=[MyStates.host, MyStates.admin])
+def balance_team_handler(message: Message):
+    args = extract_arguments(message.text)
+    if len(args) == 0 or not args.isdigit():
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            user_id = int(args)
+            user = database.get.user(user_id=user_id)
+            if user is not None:
+                bot.send_message(message.chat.id, f"Баланс команды {user.name} ({user.id}): {user.balance}")
+            else:
+                bot.send_message(message.chat.id, "Не удалось получить баланс команды")
+        except SQLAlchemyError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["id_team"], state=[MyStates.host, MyStates.admin])
+def id_team_handler(message: Message):
+    args = extract_arguments(message.text).lower()
+    if len(args) == 0:
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            user = database.get.user(name=args)
+            if user is not None:
+                bot.send_message(message.chat.id, f"ID команды {user.name}: {user.id}")
+            else:
+                bot.send_message(message.chat.id, "Не удалось получить ID команды")
+        except SQLAlchemyError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
+
+
+@bot.message_handler(commands=["kp_id"], state=[MyStates.host, MyStates.admin])
+def kp_id_handler(message: Message):
+    args = extract_arguments(message.text)
+    if len(args) == 0:
+        bot.send_message(message.chat.id, "Неверный формат")
+    else:
+        try:
+            point = database.get.point(name=args)
+            if point is not None:
+                bot.send_message(message.chat.id, f"ID КПшки {point.name}: {point.id}")
+            else:
+                bot.send_message(message.chat.id, "Не удалось получить ID КП")
+        except SQLAlchemyError as e:
+            bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+            for admin_id in config.admin_ids:
+                antiflood(bot.send_message, admin_id, e.args[0])
 
 
 @bot.message_handler(commands=["kp_balance"], state=[MyStates.host, MyStates.admin])
@@ -696,7 +738,7 @@ def kp_balance_handler(message: Message):
             point_id = int(args)
             point = database.get.point(point_id=point_id)
             if point is not None:
-                bot.send_message(message.chat.id, f"Баланс КП {point.name}: {point.balance}")
+                bot.send_message(message.chat.id, f"Баланс КПшки {point.name}: {point.balance}")
             else:
                 bot.send_message(message.chat.id, "Не удалось получить баланс КП")
         except SQLAlchemyError as e:
@@ -739,23 +781,6 @@ def total_money_handler(message: Message):
         bot.send_message(message.chat.id, f"Налички на КПшках и в магазине: {points_total}\n"
                                           f"Денег на счету у команд: {teams_total}\n"
                                           f"Всего: {points_total + teams_total}")
-    except SQLAlchemyError as e:
-        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
-        for admin_id in config.admin_ids:
-            antiflood(bot.send_message, admin_id, e.args[0])
-
-
-@bot.message_handler(commands=["kp_balance_all"], state=MyStates.admin)
-def kp_balance_all_handler(message: Message):
-    try:
-        points = database.get.all_points()
-        if len(points) > 0:
-            list_msg = "\n".join([f"{point[0]} ({point[1]}): {point[2]}" for point in points])
-            msgs = smart_split(list_msg)
-            for msg in msgs:
-                antiflood(bot.send_message, message.chat.id, msg)
-        else:
-            bot.send_message(message.chat.id, "Нет КПшек")
     except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
@@ -819,6 +844,23 @@ def admin_name_handler(message: Message):
                 antiflood(bot.send_message, admin_id, e.args[0])
 
 
+@bot.message_handler(commands=["kp_balance_all"], state=MyStates.admin)
+def kp_balance_all_handler(message: Message):
+    try:
+        points = database.get.all_points()
+        if len(points) > 0:
+            list_msg = "\n".join([f"{point[0]} ({point[1]}): {point[2]}" for point in points])
+            msgs = smart_split(list_msg)
+            for msg in msgs:
+                antiflood(bot.send_message, message.chat.id, msg)
+        else:
+            bot.send_message(message.chat.id, "Нет КПшек")
+    except SQLAlchemyError as e:
+        bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
+        for admin_id in config.admin_ids:
+            antiflood(bot.send_message, admin_id, e.args[0])
+
+
 @bot.message_handler(commands=["add_cash"], state=MyStates.admin)
 def add_cash_handler(message: Message):
     args = extract_arguments(message.text).split(" to ")
@@ -865,7 +907,7 @@ def all_users_handler(message: Message):
 @bot.message_handler(commands=["reg_kp"], state=MyStates.admin)
 def reg_kp_handler(message: Message):
     bot.set_state(message.chat.id, MyStates.kp_one_time)
-    bot.send_message(message.chat.id, "Команда может пройти КП один раз? (да/нет)")
+    bot.send_message(message.chat.id, "Команда может пройти КПшку только один раз? (да/нет)")
 
 
 @bot.message_handler(func=lambda msg: msg.text in ["да", "нет"], state=MyStates.kp_one_time)
@@ -884,26 +926,26 @@ def kp_name_handler(message: Message):
         if point_id:
             bot.set_state(message.chat.id, MyStates.admin)
             bot_logger.info(f"New point: name: {message.text}, one_time: {kp_one_time}, point_id: {point_id}")
-            bot.send_message(message.chat.id, f"КП успешно зарегистрирована, point_id: {point_id}")
+            bot.send_message(message.chat.id, f"КПшка успешно зарегистрирована, point_id: {point_id}")
             bot.send_message(config.channel_id, f"Новая КП: {message.text} (point_id: {point_id})")
         else:
-            bot.send_message(message.chat.id, "КП с таким названием уже есть, попробуйте другое название")
+            bot.send_message(message.chat.id, "КПшка с таким названием уже есть, попробуйте другое название")
     except SQLAlchemyError as e:
         bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
         for admin_id in config.admin_ids:
             antiflood(bot.send_message, admin_id, e.args[0])
 
 
-@bot.message_handler(commands=["host_password"], chat_id=config.admin_ids)
-def host_password_handler(message: Message):
+@bot.message_handler(commands=["new_host_password"], chat_id=config.admin_ids)
+def new_host_password_handler(message: Message):
     password = extract_arguments(message.text).strip()
     bot.add_data(bot.user.id, host_password=password)
     bot_logger.info(f"Пароль для хостов успешно установлен, \"{password}\"")
     bot.send_message(message.chat.id, f"Пароль для хостов успешно установлен, \"{password}\"")
 
 
-@bot.message_handler(commands=["admin_password"], chat_id=config.admin_ids)
-def admin_password_handler(message: Message):
+@bot.message_handler(commands=["new_admin_password"], chat_id=config.admin_ids)
+def new_admin_password_handler(message: Message):
     password = extract_arguments(message.text).strip()
     bot.add_data(bot.user.id, admin_password=password)
     bot_logger.info(f"Пароль для админов успешно установлен, \"{password}\"")
@@ -911,7 +953,7 @@ def admin_password_handler(message: Message):
 
 
 @bot.message_handler(commands=["remove_user"], chat_id=config.admin_ids)
-def delete_user_handler(message: Message):
+def remove_user_handler(message: Message):
     args = extract_arguments(message.text)
     if len(args) == 0 or not args.isdigit():
         bot.send_message(message.chat.id, "Неверный формат")
@@ -931,7 +973,7 @@ def delete_user_handler(message: Message):
 
 
 @bot.message_handler(commands=["remove_kp"], chat_id=config.admin_ids)
-def delete_point_handler(message: Message):
+def remove_kp_handler(message: Message):
     args = extract_arguments(message.text)
     if len(args) == 0 or not args.isdigit():
         bot.send_message(message.chat.id, "Неверный формат")
@@ -951,7 +993,7 @@ def delete_point_handler(message: Message):
 
 
 @bot.message_handler(commands=["remove_blacklist"], chat_id=config.admin_ids)
-def delete_blacklist_handler(message: Message):
+def remove_blacklist_handler(message: Message):
     args = extract_arguments(message.text).split()
     if len(args) != 2 or not args[0].isdigit() or not args[1].isdigit():
         bot.send_message(message.chat.id, "Неверный формат")
@@ -972,9 +1014,14 @@ def delete_blacklist_handler(message: Message):
                 antiflood(bot.send_message, admin_id, e.args[0])
 
 
-database.create_all()
+@bot.message_handler(commands=["create_all"], chat_id=config.admin_ids)
+def create_all_handler(message: Message):
+    database.create_all()
+    bot.send_message(message.chat.id, "Успешно")
+
 
 bot.add_custom_filter(ChatFilter())
 bot.add_custom_filter(StateFilter(bot))
+
 bot.set_state(bot.user.id, MyStates.bot)
 bot.infinity_polling()
