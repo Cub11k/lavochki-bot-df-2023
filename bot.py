@@ -722,7 +722,7 @@ def kp_id_handler(message: Message):
             if point is not None:
                 bot.send_message(message.chat.id, f"ID КПшки {point.name}: {point.id}")
             else:
-                bot.send_message(message.chat.id, "Не удалось получить ID КП")
+                bot.send_message(message.chat.id, "Не удалось получить ID КПшки")
         except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
@@ -741,7 +741,7 @@ def kp_balance_handler(message: Message):
             if point is not None:
                 bot.send_message(message.chat.id, f"Баланс КПшки {point.name}: {point.balance}")
             else:
-                bot.send_message(message.chat.id, "Не удалось получить баланс КП")
+                bot.send_message(message.chat.id, "Не удалось получить баланс КПшки")
         except SQLAlchemyError as e:
             bot.send_message(message.chat.id, "Что-то пошло не так, пожалуйста, попробуйте позже")
             for admin_id in config.admin_ids:
@@ -915,7 +915,7 @@ def reg_kp_handler(message: Message):
 def kp_one_time_handler(message: Message):
     bot.set_state(message.chat.id, MyStates.kp_name)
     bot.add_data(message.chat.id, kp_one_time=message.text == "да")
-    bot.send_message(message.chat.id, "Введите название КП")
+    bot.send_message(message.chat.id, "Введите название КПшки")
 
 
 @bot.message_handler(state=MyStates.kp_name)
