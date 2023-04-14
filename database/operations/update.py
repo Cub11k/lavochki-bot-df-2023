@@ -127,19 +127,17 @@ def skip_team(host_tg_id: int) -> bool:
             .where(Point.host_tg_id == host_tg_id)
             .scalar_subquery()
         )
-        first_team_id = (
-            select(Queue.team_id)
-            .where(Queue.point_id == point_id)
-            .where(Queue.place == 1)
-            .scalar_subquery()
-        )
-        second_team_id = (
-            select(Queue.team_id)
-            .where(Queue.point_id == point_id)
-            .where(Queue.place == 2)
-            .scalar_subquery()
-        )
         with Session.begin() as session:
+            first_team_id = session.execute(
+                select(Queue.team_id)
+                .where(Queue.point_id == point_id)
+                .where(Queue.place == 1)
+            ).scalar()
+            second_team_id = session.execute(
+                select(Queue.team_id)
+                .where(Queue.point_id == point_id)
+                .where(Queue.place == 2)
+            ).scalar()
             result = session.execute(
                 update(Queue)
                 .where(Queue.team_id == first_team_id)

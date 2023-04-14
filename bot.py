@@ -68,7 +68,7 @@ def help_handler(message: Message):
     msg = (
         "Список команд для всех:\n\n"
         "/start - начать работу с ботом\n"
-        "/cancel - отменить текущее действие\n"
+        "/cancel - отменить текущее действие (регистрацию)\n"
         "/reg - зарегистрировать команду\n"
         "/reg_host - зарегистрировать КПшника\n"
         "/reg_admin - зарегистрировать админа\n"
@@ -899,10 +899,10 @@ def kp_name_handler(message: Message):
     if extract_command(message.text) is not None:
         bot.send_message(message.chat.id, "Название КПшки не может быть начинаться с /")
     else:
-        bot.delete_state(message.chat.id)
-        name = message.text.lower()
         with bot.retrieve_data(message.chat.id) as data:
             kp_one_time = data.get("kp_one_time")
+        bot.delete_state(message.chat.id)
+        name = message.text.lower()
         try:
             point_id = database.add.point(name, kp_one_time)
             if point_id:
