@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, List, Tuple
 
 from sqlalchemy import select, func
 
@@ -77,7 +77,7 @@ def user_queue_place(tg_id: Optional[int] = None, user_id: Optional[int] = None)
 
 
 @log
-def all_users(role: Role) -> list[User]:
+def all_users(role: Role) -> List[User]:
     with Session() as session:
         users = session.execute(
             select(User)
@@ -124,7 +124,7 @@ def point_next_team(host_tg_id: int) -> Union[User, None]:
 
 
 @log
-def point_queues(point_id: int) -> list[str, int]:
+def point_queues(point_id: int) -> List[Tuple[str, int]]:
     with Session() as session:
         queues = session.execute(
             select(User.name, User.id)
@@ -155,7 +155,7 @@ def point_is_free(point_id: int) -> bool:
 
 
 @log
-def free_points(tg_id: int) -> list[tuple[int, str]]:
+def free_points(tg_id: int) -> List[Tuple[int, str]]:
     blacklisted_point_ids = (
         select(BlackList.point_id)
         .join(User.blacklist.and_(User.tg_id == tg_id))
@@ -174,7 +174,7 @@ def free_points(tg_id: int) -> list[tuple[int, str]]:
 
 
 @log
-def all_points() -> list[tuple[int, str, int]]:
+def all_points() -> List[Tuple[int, str, int]]:
     with Session() as session:
         points = session.execute(
             select(Point.name, Point.id, Point.balance)
@@ -184,7 +184,7 @@ def all_points() -> list[tuple[int, str, int]]:
 
 
 @log
-def total_money() -> tuple[int, int]:
+def total_money() -> Tuple[int, int]:
     with Session() as session:
         points_total = session.execute(
             select(func.sum(Point.balance))
