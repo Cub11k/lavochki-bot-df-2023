@@ -81,3 +81,29 @@ def blacklist(user_id: int, point_id: int) -> bool:
         return result != 0
     except exc.IntegrityError:
         return False
+
+
+@log
+def all_user_blacklists(user_id: int) -> bool:
+    try:
+        with Session.begin() as session:
+            result = session.execute(
+                delete(BlackList)
+                .where(BlackList.team_id == user_id)
+            ).rowcount
+        return result != 0
+    except exc.IntegrityError:
+        return False
+
+
+@log
+def all_point_blacklists(point_id: int) -> bool:
+    try:
+        with Session.begin() as session:
+            result = session.execute(
+                delete(BlackList)
+                .where(BlackList.point_id == point_id)
+            ).rowcount
+        return result != 0
+    except exc.IntegrityError:
+        return False

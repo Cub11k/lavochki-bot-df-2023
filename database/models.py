@@ -1,6 +1,6 @@
 from enum import IntEnum
 
-from sqlalchemy import Boolean, Integer, BigInteger, String, DateTime, Enum, Identity, ForeignKey
+from sqlalchemy import Boolean, Integer, BigInteger, String, Enum, Identity, ForeignKey
 from sqlalchemy import CheckConstraint
 
 from sqlalchemy.orm import DeclarativeBase
@@ -61,7 +61,7 @@ class Queue(BaseModel):
 
     team_id = mapped_column(Integer, ForeignKey('users.id'), primary_key=True)
     point_id = mapped_column(Integer, ForeignKey('points.id'), nullable=False)
-    date = mapped_column(DateTime, nullable=False)
+    place = mapped_column(Integer, nullable=False)
 
     team = relationship('User', back_populates='queue')
     point = relationship('Point', back_populates='queues')

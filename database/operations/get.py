@@ -1,7 +1,6 @@
 from typing import Optional
 
 from sqlalchemy import select, func
-import sqlalchemy.exc as exc
 
 from database.models import Role, User, Point, Queue, BlackList
 from database.config import Session
@@ -60,25 +59,20 @@ def user_queue(tg_id: int) -> Queue | None:
 
 
 @log
-def user_queue_place(tg_id: int) -> int | None:
-    date = (
-        select(Queue.date)
-        .join(User.queue.and_(User.tg_id == tg_id))
-        .scalar_subquery()
-    )
-    point_id = (
-        select(Queue.point_id)
-        .join(User.queue.and_(User.tg_id == tg_id))
-        .scalar_subquery()
-    )
-    main = (
-        select(func.count())
-        .select_from(Queue)
-        .where(Queue.date <= date)
-        .where(Queue.point_id == point_id)
-    )
+def user_queue_place(tg_id: Optional[int] = None, user_id: Optional[int] = None) -> int | None:
     with Session() as session:
-        place = session.execute(main).first()
+        if user_id is not None:
+            place = session.execute(
+                select(Queue.place)
+                .where(Queue.team_id == user_id)
+            ).first()
+        elif tg_id is not None:
+            place = session.execute(
+                select(Queue.place)
+                .join(User.queue.and_(User.tg_id == tg_id))
+            ).first()
+        else:
+            raise ValueError("Both user_id and tg_id are None!")
     return place if place is None else place[0]
 
 
@@ -122,9 +116,7 @@ def point_next_team(host_tg_id: int) -> User | None:
     with Session() as session:
         user_ = session.execute(
             select(User)
-            .join(Queue.team.and_(Queue.point_id == point_id))
-            .order_by(Queue.date.asc())
-            .limit(1)
+            .join(Queue.team.and_(Queue.point_id == point_id).and_(Queue.place == 1))
         ).first()
     return user_ if user_ is None else user_[0]
 
@@ -135,7 +127,7 @@ def point_queues(point_id: int) -> list[str, int]:
         queues = session.execute(
             select(User.name, User.id)
             .join(Queue.team.and_(Queue.point_id == point_id))
-            .order_by(Queue.date.asc())
+            .order_by(Queue.place.asc())
         ).all()
     return queues
 

@@ -3,7 +3,7 @@ from typing import Optional
 from sqlalchemy import select, update, insert
 import sqlalchemy.exc as exc
 
-from database.models import User, Point, BlackList
+from database.models import User, Point, Queue, BlackList
 from database.config import Session
 from database.logger import log
 
@@ -111,6 +111,45 @@ def pay(host_tg_id: int, user_id: int, amount: int, cash: bool) -> bool:
                     update(Point)
                     .where(Point.host_tg_id == host_tg_id)
                     .values(balance=Point.balance - amount)
+                ).rowcount
+            if result == 0:
+                session.rollback()
+        return result != 0
+    except exc.IntegrityError:
+        return False
+
+
+@log
+def skip_team(host_tg_id: int) -> bool:
+    try:
+        point_id = (
+            select(Point.id)
+            .where(Point.host_tg_id == host_tg_id)
+            .scalar_subquery()
+        )
+        first_team_id = (
+            select(Queue.team_id)
+            .where(Queue.point_id == point_id)
+            .where(Queue.place == 1)
+            .scalar_subquery()
+        )
+        second_team_id = (
+            select(Queue.team_id)
+            .where(Queue.point_id == point_id)
+            .where(Queue.place == 2)
+            .scalar_subquery()
+        )
+        with Session.begin() as session:
+            result = session.execute(
+                update(Queue)
+                .where(Queue.team_id == first_team_id)
+                .values(place=2)
+            ).rowcount
+            if result != 0:
+                result = session.execute(
+                    update(Queue)
+                    .where(Queue.team_id == second_team_id)
+                    .values(place=1)
                 ).rowcount
             if result == 0:
                 session.rollback()

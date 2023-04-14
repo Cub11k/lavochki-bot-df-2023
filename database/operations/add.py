@@ -1,7 +1,6 @@
 from typing import Optional, Literal
-from datetime import datetime
 
-from sqlalchemy import select, insert, exists
+from sqlalchemy import select, insert, exists, func
 import sqlalchemy.exc as exc
 
 from database.models import Role, User, Point, Queue, BlackList
@@ -36,7 +35,7 @@ def point(name: str, one_time: bool, host_tg_id: Optional[int] = None, balance: 
 
 
 @log
-def queue(point_id: int, date: datetime, user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
+def queue(point_id: int, user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
     try:
         team_id = None
         if tg_id is not None:
@@ -65,9 +64,14 @@ def queue(point_id: int, date: datetime, user_id: Optional[int] = None, tg_id: O
             if point_is_active and not black_list_exists:
                 result = session.execute(
                     insert(Queue)
-                    .values(team_id=team_id,
-                            point_id=point_id,
-                            date=date)
+                    .values(
+                        team_id=team_id,
+                        point_id=point_id,
+                        place=(select(func.count())
+                               .select_from(Queue)
+                               .where(Queue.point_id == point_id)
+                               .scalar_subquery()) + 1
+                    )
                 ).rowcount
         return result != 0
     except exc.IntegrityError:
