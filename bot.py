@@ -994,7 +994,7 @@ def remove_blacklist_handler(message: Message):
 @bot.message_handler(commands=["create_all"], chat_id=config.admin_ids)
 def create_all_handler(message: Message):
     database.create_all()
-    bot.send_message(message.chat.id, "Успешно")
+    bot.send_message(message.chat.id, "Таблицы созданы успешно")
 
 
 bot.add_custom_filter(ChatFilter())
