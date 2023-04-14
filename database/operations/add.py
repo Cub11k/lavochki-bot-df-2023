@@ -1,4 +1,4 @@
-from typing import Optional, Literal
+from typing import Optional, Literal, Union
 
 from sqlalchemy import select, insert, exists, func
 import sqlalchemy.exc as exc
@@ -9,7 +9,7 @@ from database.logger import log
 
 
 @log
-def user(role: Role, name: str, tg_id: Optional[int] = None, balance: Optional[int] = 0) -> int | Literal[False]:
+def user(role: Role, name: str, tg_id: Optional[int] = None, balance: Optional[int] = 0) -> Union[int, Literal[False]]:
     try:
         with Session.begin() as session:
             result = session.execute(
@@ -22,7 +22,7 @@ def user(role: Role, name: str, tg_id: Optional[int] = None, balance: Optional[i
 
 
 @log
-def point(name: str, one_time: bool, host_tg_id: Optional[int] = None, balance: int = 0) -> int | Literal[False]:
+def point(name: str, one_time: bool, host_tg_id: Optional[int] = None, balance: int = 0) -> Union[int, Literal[False]]:
     try:
         with Session.begin() as session:
             result = session.execute(

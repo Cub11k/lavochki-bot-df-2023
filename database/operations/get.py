@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 from sqlalchemy import select, func
 
@@ -8,7 +8,7 @@ from database.logger import log
 
 
 @log
-def user(tg_id: Optional[int] = None, user_id: Optional[int] = None, name: Optional[str] = None) -> User | None:
+def user(tg_id: Optional[int] = None, user_id: Optional[int] = None, name: Optional[str] = None) -> Union[User, None]:
     with Session() as session:
         user_ = None
         if user_id is not None:
@@ -29,7 +29,7 @@ def user(tg_id: Optional[int] = None, user_id: Optional[int] = None, name: Optio
 
 
 @log
-def user_balance(tg_id: int) -> int | None:
+def user_balance(tg_id: int) -> Union[int, None]:
     with Session() as session:
         balance = session.execute(
             select(User.balance)
@@ -39,7 +39,7 @@ def user_balance(tg_id: int) -> int | None:
 
 
 @log
-def user_role(tg_id: int) -> Role | None:
+def user_role(tg_id: int) -> Union[Role, None]:
     with Session() as session:
         role = session.execute(
             select(User.role)
@@ -49,7 +49,7 @@ def user_role(tg_id: int) -> Role | None:
 
 
 @log
-def user_queue(tg_id: int) -> Queue | None:
+def user_queue(tg_id: int) -> Union[Queue, None]:
     with Session() as session:
         queue = session.execute(
             select(Queue)
@@ -59,7 +59,7 @@ def user_queue(tg_id: int) -> Queue | None:
 
 
 @log
-def user_queue_place(tg_id: Optional[int] = None, user_id: Optional[int] = None) -> int | None:
+def user_queue_place(tg_id: Optional[int] = None, user_id: Optional[int] = None) -> Union[int, None]:
     with Session() as session:
         if user_id is not None:
             place = session.execute(
@@ -87,7 +87,9 @@ def all_users(role: Role) -> list[User]:
 
 
 @log
-def point(host_tg_id: Optional[int] = None, point_id: Optional[int] = None, name: Optional[str] = None) -> Point | None:
+def point(host_tg_id: Optional[int] = None,
+          point_id: Optional[int] = None,
+          name: Optional[str] = None) -> Union[Point, None]:
     with Session() as session:
         if point_id is not None:
             point_ = (session.get(Point, point_id),)
@@ -107,7 +109,7 @@ def point(host_tg_id: Optional[int] = None, point_id: Optional[int] = None, name
 
 
 @log
-def point_next_team(host_tg_id: int) -> User | None:
+def point_next_team(host_tg_id: int) -> Union[User, None]:
     point_id = (
         select(Point.id)
         .where(Point.host_tg_id == host_tg_id)
@@ -133,7 +135,7 @@ def point_queues(point_id: int) -> list[str, int]:
 
 
 @log
-def point_balance(point_id: int) -> int | None:
+def point_balance(point_id: int) -> Union[int, None]:
     with Session() as session:
         balance = session.execute(
             select(Point.balance)
