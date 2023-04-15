@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 import sqlalchemy.exc as exc
 
 from database.models import User, Point, Queue, BlackList
@@ -40,15 +40,35 @@ def queue(user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
         with Session.begin() as session:
             result = 0
             if user_id is not None:
+                point_id = session.execute(
+                    select(Queue.point_id)
+                    .where(Queue.team_id == user_id)
+                ).scalar()
                 result = session.execute(
                     delete(Queue)
                     .where(Queue.team_id == user_id)
                 ).rowcount
+                if result != 0:
+                    result = session.execute(
+                        update(Queue)
+                        .where(Queue.point_id == point_id)
+                        .values(place=Queue.place - 1)
+                    ).rowcount
             elif tg_id is not None:
+                point_id = session.execute(
+                    select(Queue.point_id)
+                    .where(Queue.team_id == select(User.id).where(User.tg_id == tg_id).scalar_subquery())
+                ).scalar()
                 result = session.execute(
                     delete(Queue)
                     .where(Queue.team_id == select(User.id).where(User.tg_id == tg_id).scalar_subquery())
                 ).rowcount
+                if result != 0:
+                    result = session.execute(
+                        update(Queue)
+                        .where(Queue.point_id == point_id)
+                        .values(place=Queue.place - 1)
+                    ).rowcount
             else:
                 raise ValueError("Both user_id and tg_id are None!")
         return result != 0

@@ -942,7 +942,10 @@ def remove_user_handler(message: Message):
     else:
         try:
             user_id = int(args)
-            if database.remove.all_user_blacklists(user_id) and database.remove.user(user_id):
+            user = database.get.user(user_id=user_id)
+            bot.delete_state(user.tg_id)
+            database.remove.all_user_blacklists(user_id)
+            if database.remove.user(user_id):
                 bot.send_message(message.chat.id, "Успешно")
                 bot_logger.info(f"User {args} deleted")
                 bot.send_message(config.channel_id, f"Админ {message.from_user.id} удалил пользователя {user_id}")
@@ -960,8 +963,9 @@ def remove_kp_handler(message: Message):
     else:
         try:
             point_id = int(args)
-            if database.remove.all_point_queues(point_id) and database.remove.all_point_blacklists(
-                    point_id) and database.remove.point(point_id):
+            database.remove.all_point_queues(point_id)
+            database.remove.all_point_blacklists(point_id)
+            if database.remove.point(point_id):
                 bot.send_message(message.chat.id, "Успешно")
                 bot_logger.info(f"Point {point_id} deleted")
                 bot.send_message(config.channel_id, f"Админ {message.from_user.id} удалил КПшку {point_id}")
@@ -999,7 +1003,6 @@ def create_all_handler(message: Message):
 
 bot.add_custom_filter(ChatFilter())
 bot.add_custom_filter(StateFilter(bot))
-
 
 bot.set_state(bot.user.id, MyStates.bot)
 bot.infinity_polling()
