@@ -49,7 +49,7 @@ def queue(user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
                     .where(Queue.team_id == user_id)
                 ).rowcount
                 if result != 0:
-                    result = session.execute(
+                    session.execute(
                         update(Queue)
                         .where(Queue.point_id == point_id)
                         .values(place=Queue.place - 1)
@@ -64,7 +64,7 @@ def queue(user_id: Optional[int] = None, tg_id: Optional[int] = None) -> bool:
                     .where(Queue.team_id == select(User.id).where(User.tg_id == tg_id).scalar_subquery())
                 ).rowcount
                 if result != 0:
-                    result = session.execute(
+                    session.execute(
                         update(Queue)
                         .where(Queue.point_id == point_id)
                         .values(place=Queue.place - 1)
