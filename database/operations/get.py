@@ -118,7 +118,9 @@ def point_next_team(host_tg_id: int) -> Union[User, None]:
     with Session() as session:
         user_ = session.execute(
             select(User)
-            .join(Queue.team.and_(Queue.point_id == point_id).and_(Queue.place == 1))
+            .join(Queue.team.and_(Queue.point_id == point_id))
+            .order_by(Queue.place.asc())
+            .limit(1)
         ).first()
     return user_ if user_ is None else user_[0]
 
